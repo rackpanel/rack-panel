@@ -1,0 +1,71 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        rack: {
+          canvas: '#080b11',
+          rail: '#0d121c',
+          topbar: '#0e1420',
+          card: '#131a28',
+          elev: '#192234',
+          input: '#0b1019',
+          border: '#1f2a40',
+          'border-strong': '#2d3d5c',
+          'border-cyan': '#1f5c73',
+        },
+      },
+      fontFamily: {
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Roboto',
+          'Droid Sans',
+          'Segoe UI',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: [
+          'SF Mono',
+          'Roboto Mono',
+          'Droid Sans Mono',
+          'Menlo',
+          'Consolas',
+          'monospace',
+        ],
+      },
+      borderRadius: {
+        sm: '3px',
+        DEFAULT: '4px',
+        md: '5px',
+        lg: '6px',
+        xl: '6px',
+      },
+    },
+  },
+  // Disable CSS-variable-dependent plugins so output renders cleanly on Android 4.4 (Chromium 30)
+  corePlugins: {
+    textOpacity: false,
+    backgroundOpacity: false,
+    borderOpacity: false,
+    divideOpacity: false,
+    placeholderOpacity: false,
+    ringOpacity: false,
+    ringWidth: false,
+    ringColor: false,
+    boxShadow: false,
+    transform: false,
+    translate: false,
+    scale: false,
+    rotate: false,
+    skew: false,
+    filter: false,
+    backdropFilter: false,
+    gridTemplateColumns: false,
+    gridTemplateRows: false,
+    gap: false,
+  },
+  plugins: [],
+};

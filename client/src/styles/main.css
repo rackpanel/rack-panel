@@ -1,0 +1,757 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   RACK//PANEL — Tailwind CSS v3 + Tailwind Plus Application UI (Dark)
+   Android 4.4 KitKat (Chromium 30+) Safe:
+     - Zero CSS Grid, zero flex gap, zero unresolvable CSS custom properties
+     - Pure Flexbox + GPU-composited transitions & tactile 46px–66px targets
+   ============================================================================ */
+
+@layer base {
+  *,
+  *:before,
+  *:after {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: rgba(34, 211, 238, 0.22);
+  }
+
+  html,
+  body,
+  #app {
+    @apply m-0 p-0 w-full h-full bg-rack-canvas text-slate-100 font-sans overflow-hidden;
+    font-size: 15px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select,
+  pre,
+  code {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+@layer components {
+  .mono {
+    @apply font-mono;
+  }
+
+  /* ---------- App Shell ---------- */
+  .rack-shell {
+    @apply flex flex-row w-full h-full bg-rack-canvas;
+  }
+
+  .nav-rail {
+    @apply flex flex-col items-center flex-shrink-0 border-r border-rack-border py-3 px-2 overflow-y-auto z-20;
+    width: 92px;
+    background: linear-gradient(180deg, #101624 0%, #0b0f18 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rail-brand {
+    @apply flex flex-col items-center justify-center rounded-md mb-4 border;
+    width: 64px;
+    height: 52px;
+    background: linear-gradient(135deg, #0e7490 0%, #1d4ed8 100%);
+    border-color: rgba(34, 211, 238, 0.45);
+    box-shadow: 0 4px 16px rgba(6, 182, 212, 0.28);
+  }
+
+  .rail-brand-title {
+    @apply font-mono text-white font-extrabold;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .rail-brand-sub {
+    @apply font-mono text-sky-200;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    margin-top: 1px;
+  }
+
+  .rail-nav-list {
+    @apply flex flex-col w-full flex-1;
+  }
+
+  .rail-btn {
+    @apply w-full mb-2.5 py-2 px-1 rounded-md border border-transparent bg-transparent text-slate-400 flex flex-col items-center justify-center cursor-pointer outline-none no-underline;
+    min-height: 64px;
+    touch-action: manipulation;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+  }
+
+  .rail-btn:hover {
+    background: rgba(34, 211, 238, 0.08);
+    @apply text-slate-200;
+  }
+
+  .rail-btn:active {
+    background: rgba(34, 211, 238, 0.16);
+    transform: scale(0.96);
+  }
+
+  .rail-btn.active {
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.18) 0%, rgba(8, 145, 178, 0.1) 100%);
+    border-color: rgba(34, 211, 238, 0.45);
+    @apply text-cyan-400;
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.15);
+  }
+
+  .rail-btn-icon {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+  }
+
+  .rail-btn-label {
+    font-size: 11px;
+    @apply font-semibold;
+    letter-spacing: 0.3px;
+  }
+
+  .rail-footer {
+    @apply w-full pt-2 border-t border-rack-border;
+  }
+
+  /* ---------- Main Workspace ---------- */
+  .rack-main {
+    @apply flex-1 min-w-0 h-full flex flex-col bg-rack-canvas;
+  }
+
+  .topbar {
+    @apply flex flex-row items-center justify-between flex-shrink-0 bg-rack-topbar border-b border-rack-border px-4;
+    height: 60px;
+  }
+
+  .topbar-left {
+    @apply flex flex-row items-center min-w-0;
+  }
+
+  .topbar-title {
+    @apply text-lg font-bold text-slate-100 mr-3 whitespace-nowrap;
+    letter-spacing: 0.4px;
+  }
+
+  .topbar-right {
+    @apply flex flex-row items-center;
+  }
+
+  .topbar-clock {
+    @apply font-mono text-base font-bold text-cyan-400 py-1.5 px-3 rounded bg-rack-card border border-rack-border mr-2.5;
+  }
+
+  .workspace-scroll {
+    @apply flex-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-6;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------- Flexbox 12-Column Grid (Android 4.4 Safe, no CSS Grid / gap) ---------- */
+  .rack-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-left: -8px;
+    margin-right: -8px;
+  }
+
+  .col-12,
+  .col-8,
+  .col-7,
+  .col-6,
+  .col-5,
+  .col-4,
+  .col-3 {
+    @apply px-2 mb-4 flex flex-col;
+  }
+
+  .rack-row > [class*="col-"] > .panel {
+    flex: 1 1 auto;
+  }
+
+  .stack-col {
+    margin-bottom: 0;
+  }
+
+  .stack-col > .panel {
+    flex: 0 0 auto;
+    margin-bottom: 16px;
+  }
+
+  .col-12 { width: 100%; }
+  .col-8 { width: 66.6667%; }
+  .col-7 { width: 58.3333%; }
+  .col-6 { width: 50%; }
+  .col-5 { width: 41.6667%; }
+  .col-4 { width: 33.3333%; }
+  .col-3 { width: 25%; }
+
+  /* ---------- Tailwind Plus Dark Application Panels ---------- */
+  .panel {
+    @apply border border-rack-border rounded-lg p-4;
+    background: linear-gradient(180deg, #161f30 0%, #111724 100%);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.16s ease;
+    animation: panelEnter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .panel-clickable {
+    @apply cursor-pointer;
+  }
+
+  .panel-clickable:hover {
+    @apply border-rack-border-cyan;
+    box-shadow: 0 8px 24px rgba(6, 182, 212, 0.14);
+    transform: translateY(-1px);
+  }
+
+  .panel-clickable:active {
+    @apply border-cyan-400;
+    transform: scale(0.985);
+  }
+
+  .panel-header {
+    @apply flex flex-row items-center justify-between mb-3;
+  }
+
+  .panel-title {
+    @apply text-xs font-bold uppercase text-slate-400;
+    letter-spacing: 0.9px;
+  }
+
+  .panel-subtitle {
+    @apply text-xs text-slate-500;
+  }
+
+  .section-bar {
+    @apply flex flex-row items-center justify-between flex-wrap mb-3.5;
+  }
+
+  .section-heading {
+    @apply text-xl font-bold text-slate-100 m-0;
+  }
+
+  /* ---------- Tailwind Plus Badges & Status LEDs ---------- */
+  .pill {
+    @apply inline-flex flex-row items-center py-1 px-2.5 rounded-sm text-xs font-bold whitespace-nowrap;
+    letter-spacing: 0.4px;
+  }
+
+  .pill-ok {
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    @apply text-emerald-400;
+  }
+
+  .pill-warn {
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    @apply text-amber-400;
+  }
+
+  .pill-crit {
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    @apply text-red-400;
+  }
+
+  .pill-cyan {
+    background: rgba(6, 182, 212, 0.16);
+    border: 1px solid rgba(34, 211, 238, 0.4);
+    @apply text-cyan-400;
+  }
+
+  .pill-violet {
+    background: rgba(139, 92, 246, 0.18);
+    border: 1px solid rgba(167, 139, 250, 0.45);
+    @apply text-violet-400;
+  }
+
+  .pill-muted {
+    background: rgba(100, 116, 139, 0.18);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    @apply text-slate-400;
+  }
+
+  .dot {
+    @apply inline-block rounded-full mr-1.5;
+    width: 9px;
+    height: 9px;
+  }
+
+  .dot-ok {
+    @apply bg-emerald-400;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+  }
+
+  .dot-warn {
+    @apply bg-amber-400;
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.8);
+  }
+
+  .dot-crit {
+    @apply bg-red-400;
+    box-shadow: 0 0 8px rgba(248, 113, 113, 0.8);
+  }
+
+  .dot-muted {
+    @apply bg-slate-500;
+  }
+
+  .pulse {
+    animation: rackPulse 2.2s ease-in-out infinite;
+  }
+
+  /* ---------- Tailwind Plus Touch Buttons ---------- */
+  .btn {
+    @apply inline-flex flex-row items-center justify-center px-4 rounded border border-rack-border-strong bg-rack-elev text-slate-100 font-sans text-sm font-bold cursor-pointer outline-none whitespace-nowrap;
+    min-height: 46px;
+    touch-action: manipulation;
+    transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease, transform 0.1s ease;
+  }
+
+  .btn:hover:not(:disabled) {
+    @apply border-cyan-600;
+    box-shadow: 0 3px 12px rgba(6, 182, 212, 0.16);
+  }
+
+  .btn:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    @apply cursor-not-allowed;
+  }
+
+  .btn-sm {
+    min-height: 40px;
+    @apply px-3 text-xs rounded-sm;
+  }
+
+  .btn-lg {
+    min-height: 54px;
+    @apply px-5 text-base;
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #0891b2 0%, #0e7490 100%);
+    @apply border-cyan-400 text-white;
+    box-shadow: 0 4px 14px rgba(8, 145, 178, 0.32);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    background: #0e7490;
+  }
+
+  .btn-success {
+    background: linear-gradient(180deg, #059669 0%, #047857 100%);
+    @apply border-emerald-400 text-white;
+  }
+
+  .btn-warn {
+    background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+    @apply border-amber-400 text-white;
+  }
+
+  .btn-danger {
+    background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+    @apply border-red-400 text-white;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent border-rack-border text-slate-400;
+  }
+
+  .btn-ghost:active:not(:disabled) {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .btn-group {
+    @apply flex flex-row flex-wrap items-center;
+  }
+
+  .btn-group > .btn,
+  .btn-group > .tab-pill {
+    @apply mr-2 mb-1.5;
+  }
+
+  /* ---------- Segmented Touch Tabs ---------- */
+  .tab-strip {
+    @apply flex flex-row flex-wrap bg-rack-rail border border-rack-border rounded-md p-1.5 mb-4;
+  }
+
+  .tab-btn {
+    @apply px-4 mr-1.5 rounded border border-transparent bg-transparent text-slate-400 text-sm font-bold cursor-pointer outline-none;
+    min-height: 46px;
+    touch-action: manipulation;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
+  }
+
+  .tab-btn:hover {
+    @apply text-slate-100;
+    background: rgba(148, 163, 184, 0.08);
+  }
+
+  .tab-btn:active {
+    transform: scale(0.97);
+  }
+
+  .tab-btn.active {
+    @apply bg-rack-elev border-rack-border-cyan text-cyan-400;
+  }
+
+  /* ---------- KPI Stat Cards ---------- */
+  .kpi-card {
+    @apply flex flex-col justify-between;
+    min-height: 112px;
+  }
+
+  .kpi-label {
+    @apply text-xs font-bold uppercase text-slate-400;
+    letter-spacing: 0.8px;
+  }
+
+  .kpi-value {
+    @apply font-mono text-3xl font-extrabold text-slate-100 mt-1.5 mb-1;
+  }
+
+  .kpi-sub {
+    @apply text-xs text-slate-500;
+  }
+
+  /* ---------- Progress Bar ---------- */
+  .pbar-wrap {
+    @apply w-full;
+  }
+
+  .pbar-header {
+    @apply flex flex-row justify-between items-center mb-1 text-xs;
+  }
+
+  .pbar-track {
+    @apply w-full border border-rack-border overflow-hidden;
+    height: 10px;
+    border-radius: 2px;
+    background: #0b101a;
+  }
+
+  .pbar-fill {
+    @apply h-full;
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+  }
+
+  .tone-cyan { background: linear-gradient(90deg, #0891b2 0%, #22d3ee 100%); }
+  .tone-emerald { background: linear-gradient(90deg, #059669 0%, #34d399 100%); }
+  .tone-violet { background: linear-gradient(90deg, #7c3aed 0%, #a78bfa 100%); }
+  .tone-amber { background: linear-gradient(90deg, #d97706 0%, #fbbf24 100%); }
+  .tone-crimson { background: linear-gradient(90deg, #dc2626 0%, #f87171 100%); }
+
+  /* ---------- Forms & Touch Inputs ---------- */
+  .field {
+    @apply mb-3.5;
+  }
+
+  .field-label {
+    @apply block text-xs font-bold uppercase text-slate-400 mb-1.5;
+    letter-spacing: 0.7px;
+  }
+
+  .input,
+  .select,
+  .textarea {
+    @apply w-full py-2.5 px-3.5 rounded border border-rack-border-strong bg-rack-input text-slate-100 font-sans outline-none;
+    min-height: 48px;
+    font-size: 15px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  }
+
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    @apply border-cyan-400;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+  }
+
+  .textarea {
+    min-height: 96px;
+    @apply font-mono text-xs;
+    resize: vertical;
+  }
+
+  /* ---------- Tailwind Plus Dark Data Tables ---------- */
+  .rack-table {
+    @apply w-full border-collapse text-xs;
+  }
+
+  .rack-table th {
+    @apply text-left py-2.5 px-2.5 font-bold uppercase text-slate-500 border-b border-rack-border;
+    font-size: 11px;
+    letter-spacing: 0.7px;
+  }
+
+  .rack-table td {
+    @apply py-2.5 px-2.5 text-slate-100 align-middle;
+    border-bottom: 1px solid rgba(31, 42, 64, 0.65);
+  }
+
+  .rack-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .rack-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+
+  .rack-table tbody tr:hover {
+    background-color: rgba(34, 211, 238, 0.05);
+  }
+
+  /* ---------- Dialogs & Overlays ---------- */
+  .modal-backdrop {
+    @apply fixed inset-0 flex items-center justify-center p-4;
+    background: rgba(5, 8, 14, 0.84);
+    z-index: 100;
+  }
+
+  .modal-card {
+    @apply w-full border border-rack-border-strong rounded-lg flex flex-col overflow-hidden;
+    max-width: 620px;
+    max-height: 92vh;
+    background: #121826;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+  }
+
+  .modal-header {
+    @apply py-4 px-5 border-b border-rack-border flex flex-row items-center justify-between;
+  }
+
+  .modal-title {
+    @apply text-lg font-bold text-slate-100 m-0;
+  }
+
+  .modal-body {
+    @apply py-4 px-5 overflow-y-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-footer {
+    @apply py-3.5 px-5 border-t border-rack-border bg-rack-rail flex flex-row items-center justify-end;
+  }
+
+  .modal-footer > .btn {
+    @apply ml-2.5;
+  }
+
+  /* ---------- Terminal Output Box ---------- */
+  .terminal-box {
+    @apply border border-rack-border-strong rounded py-3 px-3.5 font-mono text-xs text-emerald-200 overflow-y-auto whitespace-pre-wrap break-all;
+    background: #06090f;
+    line-height: 1.5;
+    max-height: 240px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------- Alerts & Toast ---------- */
+  .alert-row {
+    @apply flex flex-row items-center justify-between py-2.5 px-3.5 rounded mb-2 text-xs;
+  }
+
+  .alert-critical {
+    background: rgba(220, 38, 38, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    @apply text-red-200;
+  }
+
+  .alert-warning {
+    background: rgba(217, 119, 6, 0.16);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    @apply text-amber-200;
+  }
+
+  .toast-banner {
+    @apply fixed bottom-5 right-5 py-3.5 px-4 rounded-md border border-cyan-400 text-slate-100 font-bold;
+    z-index: 200;
+    background: #172236;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    max-width: 380px;
+  }
+
+  .toast-banner.toast-error {
+    @apply border-red-400 text-red-200;
+  }
+}
+
+/* ---------- Animations & Vue Transitions ---------- */
+@keyframes rackPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+@keyframes panelEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-fade-enter-active,
+.view-fade-leave-active {
+  transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.view-fade-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.view-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.modal-pop-enter-active,
+.modal-pop-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-pop-enter-active .modal-card,
+.modal-pop-leave-active .modal-card,
+.modal-pop-enter-active .term-modal,
+.modal-pop-leave-active .term-modal,
+.modal-pop-enter-active .vnc-modal,
+.modal-pop-leave-active .vnc-modal {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+
+.modal-pop-enter,
+.modal-pop-leave-to {
+  opacity: 0;
+}
+
+.modal-pop-enter .modal-card,
+.modal-pop-leave-to .modal-card,
+.modal-pop-enter .term-modal,
+.modal-pop-leave-to .term-modal,
+.modal-pop-enter .vnc-modal,
+.modal-pop-leave-to .vnc-modal {
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+}
+
+.splash-fade-enter-active {
+  transition: opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.splash-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.splash-fade-enter {
+  opacity: 0;
+  transform: scale(1.02);
+}
+
+.splash-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.99);
+}
+
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+  transition: opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toast-slide-enter,
+.toast-slide-leave-to {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.slide-down-enter,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ---------- Responsive Breakpoints ---------- */
+@media (max-width: 1024px) {
+  .col-3 { width: 50%; }
+  .col-4 { width: 50%; }
+  .col-5,
+  .col-7,
+  .col-8 { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .rack-shell {
+    flex-direction: column-reverse;
+  }
+
+  .nav-rail {
+    width: 100%;
+    height: 68px;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid #1f2a40;
+    padding: 4px 8px;
+  }
+
+  .rail-brand,
+  .rail-footer {
+    display: none;
+  }
+
+  .rail-nav-list {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+
+  .rail-btn {
+    min-height: 54px;
+    margin-bottom: 0;
+    margin-right: 4px;
+  }
+
+  .col-6,
+  .col-4,
+  .col-3 {
+    width: 100%;
+  }
+
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar-clock {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

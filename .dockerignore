@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+server/node_modules
+client/node_modules
+server/dist
+server/data
+client/dist
+.env
+.env.*
+.DS_Store
+*.log
+*.key
+*.pem

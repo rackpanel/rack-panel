@@ -1,0 +1,39 @@
+services:
+  # Optional turnkey Tailscale sidecar: set TS_AUTHKEY in .env to auto-join your Tailnet
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: rack-panel-tailscale
+    hostname: rack-panel
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--accept-routes
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "3840:3840"
+
+  rack-panel:
+    image: ghcr.io/rackpanel/rack-panel:latest
+    # Uncomment below to build locally instead of pulling from GHCR:
+    # build: .
+    container_name: rack-panel
+    restart: unless-stopped
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    environment:
+      - PORT=3840
+      - HOST=0.0.0.0
+      - RACK_PANEL_SECRET=${RACK_PANEL_SECRET:-}
+    volumes:
+      - rack_panel_data:/app/server/data
+
+volumes:
+  tailscale_state:
+  rack_panel_data:
