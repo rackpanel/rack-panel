@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/rackpanel/rack-panel/releases"><img src="https://img.shields.io/github/v/release/rackpanel/rack-panel?color=22d3ee&label=release" alt="Latest Release" /></a>
   <a href="https://github.com/rackpanel/rack-panel/actions/workflows/ci.yml"><img src="https://github.com/rackpanel/rack-panel/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/rackpanel/rack-panel/actions/workflows/docker.yml"><img src="https://github.com/rackpanel/rack-panel/actions/workflows/docker.yml/badge.svg" alt="Docker GHCR" /></a>
   <a href="https://github.com/rackpanel/rack-panel/pkgs/container/rack-panel"><img src="https://img.shields.io/badge/ghcr.io-rackpanel%2Frack--panel-22d3ee?logo=docker&logoColor=white" alt="GHCR" /></a>
@@ -130,6 +131,27 @@ rack-panel/
 
 ### Android 4.4 Rack Kiosk Display
 Point *Fully Kiosk Browser* (or Chromium/WebView) to `http://<your-server-ip>:3840`, sign in once (session persists until browser storage is cleared), enable **Idle Metrics Splash Screen** + **4-Digit PIN Unlock** in **Settings**, and tap **Kiosk** on the left touch rail.
+
+---
+
+## Versioning & Releases
+
+RACK//PANEL uses **Semantic Versioning** (`vMAJOR.MINOR.PATCH`, e.g., `v1.1.1`).
+
+Cut a new release locally:
+
+```bash
+# Bump patch (e.g. 1.0.0 -> 1.0.1), minor, major, or explicit semver (e.g. 1.1.1)
+npm run release -- 1.1.1 --push
+# or
+npm run release -- patch --push
+```
+
+Or trigger a release directly in GitHub via **Actions → Release → Run workflow**.
+
+Pushing a `v*.*.*` tag automatically:
+1. Builds & publishes a **GitHub Release** with categorized changelog notes, production tarball (`rack-panel-vX.Y.Z.tar.gz`), and `SHA256SUMS.txt`.
+2. Builds & publishes multi-arch (`linux/amd64`, `linux/arm64`) **GHCR Docker tags**: `:X.Y.Z`, `:X.Y`, `:X`, and `:latest`.
 
 ---
 

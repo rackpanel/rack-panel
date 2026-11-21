@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.1.1 or patch / minor / major)'
+        required: true
+        default: 'patch'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag-from-dispatch:
+    if: github.event_name == 'workflow_dispatch'
+    name: Bump Version & Push Tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version, commit, and tag
+        id: bump
+        run: |
+          node scripts/release.mjs "${{ inputs.version }}" --push
+          TAG="$(git describe --tags --abbrev=0)"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+  publish-release:
+    needs: [tag-from-dispatch]
+    if: >-
+      always() && (
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && needs.tag-from-dispatch.result == 'success')
+      )
+    name: Build & Publish GitHub Release
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && needs.tag-from-dispatch.outputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm --prefix server ci && npm --prefix client ci
+
+      - name: Typecheck & Build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Package release bundle
+        id: pkg
+        run: |
+          TAG="${RELEASE_TAG}"
+          VER="${TAG#v}"
+          ARCHIVE="rack-panel-${TAG}.tar.gz"
+          tar -czf "${ARCHIVE}" \
+            package.json \
+            LICENSE \
+            README.md \
+            Dockerfile \
+            docker-compose.yml \
+            shared \
+            server/package.json \
+            server/package-lock.json \
+            server/dist \
+            client/dist
+          sha256sum "${ARCHIVE}" > SHA256SUMS.txt
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.pkg.outputs.tag }}"
+          VER="${{ steps.pkg.outputs.version }}"
+          ARCHIVE="${{ steps.pkg.outputs.archive }}"
+          MAJOR_MINOR="$(echo "${VER}" | awk -F. '{print $1"."$2}')"
+          PRERELEASE_FLAG=""
+          if echo "${VER}" | grep -q "-"; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          cat > release-notes.md <<EOF
+          ### Docker Image (Multi-Arch \`linux/amd64\` & \`linux/arm64\`)
+
+          \`\`\`bash
+          docker pull ghcr.io/rackpanel/rack-panel:${VER}
+          # or track minor / latest:
+          docker pull ghcr.io/rackpanel/rack-panel:${MAJOR_MINOR}
+          docker pull ghcr.io/rackpanel/rack-panel:latest
+          \`\`\`
+
+          ---
+          EOF
+
+          gh release create "${TAG}" \
+            "${ARCHIVE}" \
+            SHA256SUMS.txt \
+            --title "RACK//PANEL ${TAG}" \
+            --notes-file release-notes.md \
+            --generate-notes \
+            ${PRERELEASE_FLAG}
+
+      # Tags pushed by GITHUB_TOKEN don't trigger other workflows, so dispatch the
+      # GHCR Docker build explicitly for releases cut from the Actions UI.
+      - name: Trigger GHCR Docker build for release tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker.yml --repo "${GITHUB_REPOSITORY}" --ref "${RELEASE_TAG}"
