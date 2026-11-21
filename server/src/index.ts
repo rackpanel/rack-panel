@@ -832,8 +832,9 @@ app.post('/api/opnsense/:id/system/:action', async (req, res) => {
   }
 });
 
-// Serve built Vue frontend in production
+// Serve built Vue frontend in production & dev (for Android 4.4 legacy bundle on :3840)
 const candidateDistDirs = [
+  path.resolve(__dirname, '../../client/dist'),
   path.resolve(__dirname, '../../../client/dist'),
   path.resolve(__dirname, '../../../../client/dist'),
 ];
@@ -841,7 +842,11 @@ const clientDist = candidateDistDirs.find((dir) => fs.existsSync(path.join(dir, 
 
 if (clientDist) {
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => {
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      next();
+      return;
+    }
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }

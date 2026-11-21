@@ -10,6 +10,32 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#0b0e14" />
     <title>RACK//PANEL — Server &amp; Proxmox Control Console</title>
+    <script>
+      (function () {
+        if (!window.location.origin) {
+          window.location.origin =
+            window.location.protocol +
+            '//' +
+            window.location.hostname +
+            (window.location.port ? ':' + window.location.port : '');
+        }
+        // On Android 4.4 / pre-ES6-module browsers visiting the Vite dev server (:5173),
+        // switch automatically to the compiled ES5 legacy bundle (?legacy=1).
+        try {
+          var s = document.createElement('script');
+          if (
+            !('noModule' in s) &&
+            window.location.port === '5173' &&
+            window.location.search.indexOf('legacy=1') === -1
+          ) {
+            var sep = window.location.search ? '&' : '?';
+            window.location.replace(
+              window.location.pathname + window.location.search + sep + 'legacy=1' + window.location.hash
+            );
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
