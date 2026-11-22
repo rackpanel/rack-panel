@@ -10,6 +10,264 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#0b0e14" />
     <title>RACK//PANEL — Server &amp; Proxmox Control Console</title>
+    <style>
+      #rack-boot-shell {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #060911;
+        color: #f1f5f9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-box-align: center;
+        -webkit-align-items: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        -webkit-justify-content: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 9999;
+      }
+      .rack-boot-card {
+        width: 100%;
+        max-width: 480px;
+        background: #0e1525;
+        border: 1px solid #243452;
+        border-radius: 6px;
+        padding: 24px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+      }
+      .rack-boot-card.is-error {
+        border-color: #ef4444;
+      }
+      .rack-boot-top {
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-box-align: center;
+        -webkit-align-items: center;
+        align-items: center;
+        -webkit-box-pack: justify;
+        -webkit-justify-content: space-between;
+        justify-content: space-between;
+        border-bottom: 1px solid #1d2a42;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+      }
+      .rack-boot-title {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: 1.4px;
+        color: #f8fafc;
+      }
+      .rack-boot-pill {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 4px;
+        background: rgba(34, 211, 238, 0.14);
+        border: 1px solid rgba(34, 211, 238, 0.45);
+        color: #22d3ee;
+      }
+      .rack-boot-card.is-error .rack-boot-pill {
+        background: rgba(239, 68, 68, 0.18);
+        border-color: rgba(248, 113, 113, 0.55);
+        color: #fca5a5;
+      }
+      .rack-boot-heading {
+        font-size: 16px;
+        font-weight: 700;
+        color: #f8fafc;
+        margin: 0 0 8px 0;
+      }
+      .rack-boot-sub {
+        font-size: 13px;
+        color: #94a3b8;
+        line-height: 1.5;
+        margin: 0 0 14px 0;
+      }
+      .rack-boot-log {
+        display: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #fecaca;
+        background: #190d14;
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin-bottom: 16px;
+        word-break: break-all;
+        white-space: pre-wrap;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+      .rack-boot-actions {
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-flex-wrap: wrap;
+        flex-wrap: wrap;
+        margin: -4px;
+      }
+      .rack-boot-btn {
+        -webkit-box-flex: 1;
+        -webkit-flex: 1;
+        flex: 1;
+        min-width: 150px;
+        min-height: 48px;
+        margin: 4px;
+        padding: 10px 16px;
+        border-radius: 4px;
+        border: 1px solid #2b3d5f;
+        background: #162238;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: center;
+      }
+      .rack-boot-btn-primary {
+        background: #0891b2;
+        border-color: #22d3ee;
+        color: #ffffff;
+      }
+    </style>
+    <style>
+      #rack-boot-shell {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #060911;
+        color: #f1f5f9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-box-align: center;
+        -webkit-align-items: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        -webkit-justify-content: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 9999;
+      }
+      .rack-boot-card {
+        width: 100%;
+        max-width: 480px;
+        background: #0e1525;
+        border: 1px solid #243452;
+        border-radius: 6px;
+        padding: 24px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+      }
+      .rack-boot-card.is-error {
+        border-color: #ef4444;
+      }
+      .rack-boot-top {
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-box-align: center;
+        -webkit-align-items: center;
+        align-items: center;
+        -webkit-box-pack: justify;
+        -webkit-justify-content: space-between;
+        justify-content: space-between;
+        border-bottom: 1px solid #1d2a42;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+      }
+      .rack-boot-title {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: 1.4px;
+        color: #f8fafc;
+      }
+      .rack-boot-pill {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 4px;
+        background: rgba(34, 211, 238, 0.14);
+        border: 1px solid rgba(34, 211, 238, 0.45);
+        color: #22d3ee;
+      }
+      .rack-boot-card.is-error .rack-boot-pill {
+        background: rgba(239, 68, 68, 0.18);
+        border-color: rgba(248, 113, 113, 0.55);
+        color: #fca5a5;
+      }
+      .rack-boot-heading {
+        font-size: 16px;
+        font-weight: 700;
+        color: #f8fafc;
+        margin: 0 0 8px 0;
+      }
+      .rack-boot-sub {
+        font-size: 13px;
+        color: #94a3b8;
+        line-height: 1.5;
+        margin: 0 0 14px 0;
+      }
+      .rack-boot-log {
+        display: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #fecaca;
+        background: #190d14;
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin-bottom: 16px;
+        word-break: break-all;
+        white-space: pre-wrap;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+      .rack-boot-actions {
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-flex-wrap: wrap;
+        flex-wrap: wrap;
+        margin: -4px;
+      }
+      .rack-boot-btn {
+        -webkit-box-flex: 1;
+        -webkit-flex: 1;
+        flex: 1;
+        min-width: 150px;
+        min-height: 48px;
+        margin: 4px;
+        padding: 10px 16px;
+        border-radius: 4px;
+        border: 1px solid #2b3d5f;
+        background: #162238;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: center;
+      }
+      .rack-boot-btn-primary {
+        background: #0891b2;
+        border-color: #22d3ee;
+        color: #ffffff;
+      }
+    </style>
     <script>
       (function () {
         if (!window.location.origin) {
@@ -19,6 +277,7 @@
             window.location.hostname +
             (window.location.port ? ':' + window.location.port : '');
         }
+
         // On Android 4.4 / pre-ES6-module browsers visiting the Vite dev server (:5173),
         // switch automatically to the compiled ES5 legacy bundle (?legacy=1).
         try {
@@ -32,13 +291,108 @@
             window.location.replace(
               window.location.pathname + window.location.search + sep + 'legacy=1' + window.location.hash
             );
+            return;
           }
         } catch (e) {}
+
+        window.__RACK_PANEL_MOUNTED__ = false;
+        var errorLines = [];
+
+        window.__rackReload = function (bustCache) {
+          if (bustCache) {
+            var base = window.location.pathname;
+            var q = window.location.search.replace(/[?&]_t=\d+/g, '');
+            var sep = q ? '&' : '?';
+            window.location.replace(base + q + sep + '_t=' + new Date().getTime() + window.location.hash);
+          } else {
+            window.location.reload();
+          }
+        };
+
+        window.__rackShowBootError = function (msg) {
+          if (window.__RACK_PANEL_MOUNTED__) return;
+          if (msg) errorLines.push(String(msg));
+          var card = document.getElementById('rack-boot-card');
+          var pill = document.getElementById('rack-boot-pill');
+          var heading = document.getElementById('rack-boot-heading');
+          var sub = document.getElementById('rack-boot-sub');
+          var log = document.getElementById('rack-boot-log');
+          if (card) card.className = 'rack-boot-card is-error';
+          if (pill) pill.innerHTML = 'LOAD ERROR';
+          if (heading) heading.innerHTML = 'Console Failed to Load';
+          if (sub) {
+            sub.innerHTML =
+              'The dashboard bundle did not finish initializing. Tap Refresh Console below to retry.';
+          }
+          if (log && errorLines.length > 0) {
+            log.style.display = 'block';
+            log.innerHTML = errorLines.join('\n').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          }
+        };
+
+        window.__rackMarkMounted = function () {
+          window.__RACK_PANEL_MOUNTED__ = true;
+          if (window.__rackBootTimer) {
+            clearTimeout(window.__rackBootTimer);
+            window.__rackBootTimer = null;
+          }
+          var shell = document.getElementById('rack-boot-shell');
+          if (shell && shell.parentNode) {
+            shell.parentNode.removeChild(shell);
+          }
+        };
+
+        window.onerror = function (message, source, lineno, colno, err) {
+          if (window.__RACK_PANEL_MOUNTED__) return;
+          var loc = source ? ' (' + String(source).split('/').pop() + ':' + (lineno || 0) + ')' : '';
+          var detail = (err && err.message ? err.message : String(message)) + loc;
+          window.__rackShowBootError(detail);
+        };
+
+        window.__rackBootTimer = setTimeout(function () {
+          if (!window.__RACK_PANEL_MOUNTED__) {
+            window.__rackShowBootError(
+              errorLines.length === 0
+                ? 'Timed out waiting for Vue application mount (' + navigator.userAgent + ')'
+                : ''
+            );
+          }
+        }, 7000);
       })();
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="rack-boot-shell">
+        <div id="rack-boot-card" class="rack-boot-card">
+          <div class="rack-boot-top">
+            <span class="rack-boot-title">RACK//PANEL</span>
+            <span id="rack-boot-pill" class="rack-boot-pill">LOADING...</span>
+          </div>
+          <h2 id="rack-boot-heading" class="rack-boot-heading">Initializing Rack Console...</h2>
+          <p id="rack-boot-sub" class="rack-boot-sub">
+            Connecting to telemetry engine. If the screen does not load within a few seconds, tap Refresh below.
+          </p>
+          <pre id="rack-boot-log" class="rack-boot-log"></pre>
+          <div class="rack-boot-actions">
+            <button
+              type="button"
+              class="rack-boot-btn rack-boot-btn-primary"
+              onclick="window.__rackReload(false)"
+            >
+              Refresh Console
+            </button>
+            <button
+              type="button"
+              class="rack-boot-btn"
+              onclick="window.__rackReload(true)"
+            >
+              Clear Cache &amp; Reload
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

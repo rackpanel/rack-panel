@@ -64,3 +64,7 @@ new Vue({
   router,
   render: (h) => h(App),
 }).$mount('#app');
+
+if (typeof window !== 'undefined' && typeof (window as any).__rackMarkMounted === 'function') {
+  (window as any).__rackMarkMounted();
+}

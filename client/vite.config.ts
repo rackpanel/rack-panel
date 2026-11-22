@@ -39,8 +39,23 @@ function android44KitKatCompat(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler(html) {
-        // Strip same-origin `crossorigin` attributes that can trip up older Android 4.4 WebViews
-        return html.replace(/\s+crossorigin(?:="[^"]*")?/g, '');
+        return (
+          html
+            // 1. Strip same-origin `crossorigin` attributes that can trip up older Android 4.4 WebViews
+            .replace(/\s+crossorigin(?:="[^"]*")?/g, '')
+            // 2. Strip the Safari 10.1 `onbeforeload` nomodule hack — on Android 4.4 WebView (Chromium 30),
+            //    `!("noModule" in t) && "onbeforeload" in t` is TRUE and fires `beforeload` on `t`,
+            //    which then calls `e.preventDefault()` on `<script nomodule id="vite-legacy-polyfill">`!
+            .replace(
+              /<script nomodule>!function\(\)\{var e=document,t=e\.createElement\("script"\);if\(!\("noModule"in t\)&&"onbeforeload"in t\)[\s\S]*?<\/script>/g,
+              '',
+            )
+            // 3. Report any System.import errors directly to the index.html boot error UI
+            .replace(
+              /System\.import\(document\.getElementById\('vite-legacy-entry'\)\.getAttribute\('data-src'\)\)/g,
+              "System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))['catch'](function(e){if(window.__rackShowBootError)window.__rackShowBootError(e&&(e.stack||e.message)||String(e))})",
+            )
+        );
       },
     },
     configureServer(server) {
