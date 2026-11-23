@@ -1,6 +1,6 @@
 {
   "name": "rack-panel",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "Touchscreen-first Server Rack & Proxmox VE Control Panel built with Vue + TypeScript (Android 4.4+ compatible)",
   "scripts": {
