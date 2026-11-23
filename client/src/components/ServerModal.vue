@@ -4,6 +4,7 @@
     :title="isEdit ? 'Edit SSH Server' : 'Add SSH Server'"
     @close="$emit('close')"
   >
+    <DeviceAutoScan v-if="!isEdit" kind="server" :open="open" @select="applyScanned" />
     <div class="rack-row">
           <div class="col-6">
             <div class="field">
@@ -116,10 +117,11 @@ import type { AuthMethod, ConnectionTestResult, SshServerPublic } from '@shared/
 import { api } from '@/api/client';
 import UiDialog from '@/components/ui/UiDialog.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import DeviceAutoScan, { type ScannedDevicePick } from '@/components/DeviceAutoScan.vue';
 
 export default defineComponent({
   name: 'ServerModal',
-  components: { UiDialog, UiButton },
+  components: { UiDialog, UiButton, DeviceAutoScan },
   props: {
     open: { type: Boolean, default: false },
     initialServer: { type: Object as () => SshServerPublic | null, default: null },
@@ -255,6 +257,12 @@ export default defineComponent({
       }
     }
 
+    function applyScanned(d: ScannedDevicePick) {
+      form.host = d.host;
+      form.port = d.port || 22;
+      if (!form.name.trim()) form.name = d.name;
+    }
+
     return {
       form,
       tagsInput,
@@ -263,6 +271,7 @@ export default defineComponent({
       saving,
       testResult,
       errorMsg,
+      applyScanned,
       handleTest,
       handleSave,
     };

@@ -13,10 +13,9 @@
   <div v-else class="rack-shell">
     <!-- Persistent Touch Navigation Rail (Left on Landscape, Bottom on Narrow) -->
     <aside class="nav-rail">
-      <div class="rail-brand">
-        <span class="rail-brand-title">RACK</span>
-        <span class="rail-brand-sub">PANEL</span>
-      </div>
+      <router-link to="/overview" class="rail-brand" title="RACK//PANEL">
+        <img src="/logo.jpg" alt="RACK//PANEL" class="rail-brand-logo" />
+      </router-link>
 
       <nav class="rail-nav-list">
         <router-link to="/overview" class="rail-btn" active-class="active">
@@ -29,31 +28,107 @@
           <span class="rail-btn-label">Overview</span>
         </router-link>
 
-        <router-link to="/servers" class="rail-btn" active-class="active">
-          <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="6" rx="1.5" />
-            <rect x="3" y="14" width="18" height="6" rx="1.5" />
-            <circle cx="7" cy="7" r="1" fill="currentColor" />
-            <circle cx="7" cy="17" r="1" fill="currentColor" />
-          </svg>
-          <span class="rail-btn-label">Servers</span>
-        </router-link>
+        <div class="rail-devices-group">
+          <button
+            type="button"
+            class="rail-btn"
+            :class="{ active: isDevicesRoute || devicesMenuOpen }"
+            @click="devicesMenuOpen = !devicesMenuOpen"
+          >
+            <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="7" rx="1.5" />
+              <rect x="2" y="14" width="20" height="7" rx="1.5" />
+              <circle cx="6" cy="6.5" r="1" fill="currentColor" />
+              <circle cx="6" cy="17.5" r="1" fill="currentColor" />
+            </svg>
+            <span class="rail-btn-label">
+              Devices {{ devicesMenuOpen ? '▾' : '▸' }}
+            </span>
+          </button>
 
-        <router-link to="/proxmox" class="rail-btn" active-class="active">
-          <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2" />
-            <line x1="12" y1="22" x2="12" y2="12" />
-            <polyline points="21 7 12 12 3 7" />
-          </svg>
-          <span class="rail-btn-label">Proxmox</span>
-        </router-link>
+          <div v-if="devicesMenuOpen" class="rail-submenu">
+            <router-link to="/servers" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="6" rx="1.5" />
+                <rect x="3" y="14" width="18" height="6" rx="1.5" />
+                <circle cx="7" cy="7" r="1" fill="currentColor" />
+                <circle cx="7" cy="17" r="1" fill="currentColor" />
+              </svg>
+              <span class="rail-sub-label">Servers</span>
+            </router-link>
 
-        <router-link to="/opnsense" class="rail-btn" active-class="active">
+            <router-link to="/proxmox" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2" />
+                <line x1="12" y1="22" x2="12" y2="12" />
+                <polyline points="21 7 12 12 3 7" />
+              </svg>
+              <span class="rail-sub-label">Proxmox</span>
+            </router-link>
+
+            <router-link to="/docker" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="10" width="5" height="5" rx="0.8" />
+                <rect x="9.5" y="10" width="5" height="5" rx="0.8" />
+                <rect x="16" y="10" width="5" height="5" rx="0.8" />
+                <rect x="9.5" y="4" width="5" height="5" rx="0.8" />
+                <path d="M2 16h20c-.8 3.2-3.5 5-8 5H9c-4.5 0-6.8-1.8-7-5z" />
+              </svg>
+              <span class="rail-sub-label">Docker</span>
+            </router-link>
+
+            <router-link to="/opnsense" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+              <span class="rail-sub-label">OPNsense</span>
+            </router-link>
+
+            <router-link to="/switches" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="6" width="20" height="12" rx="2" />
+                <circle cx="6" cy="10" r="1" fill="currentColor" />
+                <circle cx="10" cy="10" r="1" fill="currentColor" />
+                <circle cx="14" cy="10" r="1" fill="currentColor" />
+                <circle cx="18" cy="10" r="1" fill="currentColor" />
+                <line x1="6" y1="14" x2="8" y2="14" />
+                <line x1="11" y1="14" x2="13" y2="14" />
+                <line x1="16" y1="14" x2="18" y2="14" />
+              </svg>
+              <span class="rail-sub-label">Switches</span>
+            </router-link>
+
+            <router-link to="/hikvision" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+              <span class="rail-sub-label">Cameras</span>
+            </router-link>
+
+            <router-link to="/unifi" class="rail-sub-btn" active-class="active">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <circle cx="12" cy="20" r="1" />
+              </svg>
+              <span class="rail-sub-label">UniFi</span>
+            </router-link>
+          </div>
+        </div>
+
+        <router-link to="/topology" class="rail-btn" active-class="active">
           <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            <polyline points="9 12 11 14 15 10" />
+            <circle cx="6" cy="6" r="3" />
+            <circle cx="18" cy="6" r="3" />
+            <circle cx="12" cy="18" r="3" />
+            <line x1="8.6" y1="7.5" x2="15.4" y2="7.5" />
+            <line x1="7.5" y1="8.6" x2="10.8" y2="15.4" />
+            <line x1="16.5" y1="8.6" x2="13.2" y2="15.4" />
           </svg>
-          <span class="rail-btn-label">OPNsense</span>
+          <span class="rail-btn-label">Topology</span>
         </router-link>
 
         <router-link to="/tailscale" class="rail-btn" active-class="active">
@@ -224,6 +299,12 @@
             @add-opnsense="openAddOpnsense"
             @edit-opnsense="openEditOpnsense"
             @delete-opnsense="confirmDeleteOpnsense"
+            @add-hikvision="openAddHikvision"
+            @edit-hikvision="openEditHikvision"
+            @delete-hikvision="confirmDeleteHikvision"
+            @add-unifi="openAddUnifi"
+            @edit-unifi="openEditUnifi"
+            @delete-unifi="confirmDeleteUnifi"
             @import-ssh="importTailscaleAsSsh"
             @import-proxmox="importTailscaleAsProxmox"
             @refresh="loadData"
@@ -265,6 +346,20 @@
       :initial-config="editingOpnsense"
       @close="opnsenseModalOpen = false"
       @saved="onConnectionSaved('OPNsense firewall saved')"
+    />
+
+    <HikvisionModal
+      :open="hikvisionModalOpen"
+      :initial-config="editingHikvision"
+      @close="hikvisionModalOpen = false"
+      @saved="onConnectionSaved('Hikvision device saved')"
+    />
+
+    <UnifiModal
+      :open="unifiModalOpen"
+      :initial-config="editingUnifi"
+      @close="unifiModalOpen = false"
+      @saved="onConnectionSaved('UniFi controller saved')"
     />
 
     <ConfirmModal
@@ -309,6 +404,7 @@ import { defineComponent, ref, computed, watch, getCurrentInstance, onMounted, o
 import type {
   AuthLoginResponse,
   AuthUserPublic,
+  HikvisionConfigPublic,
   OpnsenseConfigPublic,
   OverviewResponse,
   PanelSettings,
@@ -316,6 +412,7 @@ import type {
   SshServerPublic,
   TailscaleConfigPublic,
   TailscaleDevice,
+  UnifiConfigPublic,
 } from '@shared/types';
 import router, { getSavedLastRoute } from '@/router';
 import { api } from '@/api/client';
@@ -326,6 +423,8 @@ import ServerModal from '@/components/ServerModal.vue';
 import ProxmoxModal from '@/components/ProxmoxModal.vue';
 import TailscaleModal from '@/components/TailscaleModal.vue';
 import OpnsenseModal from '@/components/OpnsenseModal.vue';
+import HikvisionModal from '@/components/HikvisionModal.vue';
+import UnifiModal from '@/components/UnifiModal.vue';
 import TerminalModal, { type TerminalTarget } from '@/components/TerminalModal.vue';
 import VncModal, { type VncTarget } from '@/components/VncModal.vue';
 import IdleSplashScreen from '@/components/IdleSplashScreen.vue';
@@ -339,18 +438,40 @@ export default defineComponent({
     ProxmoxModal,
     TailscaleModal,
     OpnsenseModal,
+    HikvisionModal,
+    UnifiModal,
     TerminalModal,
     VncModal,
     IdleSplashScreen,
     ConfirmModal,
   },
   setup() {
-    type MainTab = 'overview' | 'servers' | 'proxmox' | 'opnsense' | 'tailscale' | 'settings';
+    type MainTab = 'overview' | 'servers' | 'proxmox' | 'docker' | 'opnsense' | 'switches' | 'hikvision' | 'unifi' | 'topology' | 'tailscale' | 'settings';
     type PveSubTab = 'nodes' | 'guests' | 'storage' | 'tasks';
     type OpnSubTab = 'overview' | 'interfaces' | 'services' | 'firewall';
-    const VALID_TABS: MainTab[] = ['overview', 'servers', 'proxmox', 'opnsense', 'tailscale', 'settings'];
+    type SwSubTab = 'overview' | 'ports' | 'neighbors' | 'services';
+    type HikSubTab = 'live' | 'channels' | 'storage';
+    type UnifiSubTab = 'devices' | 'clients' | 'wlans' | 'health';
+    type TopoSubTab = 'canvas' | 'racks' | 'scanner' | 'ipam' | 'docs';
+    const VALID_TABS: MainTab[] = [
+      'overview',
+      'servers',
+      'proxmox',
+      'docker',
+      'opnsense',
+      'switches',
+      'hikvision',
+      'unifi',
+      'topology',
+      'tailscale',
+      'settings',
+    ];
     const VALID_PVE_TABS: PveSubTab[] = ['nodes', 'guests', 'storage', 'tasks'];
     const VALID_OPN_TABS: OpnSubTab[] = ['overview', 'interfaces', 'services', 'firewall'];
+    const VALID_SW_TABS: SwSubTab[] = ['overview', 'ports', 'neighbors', 'services'];
+    const VALID_HIK_TABS: HikSubTab[] = ['live', 'channels', 'storage'];
+    const VALID_UNIFI_TABS: UnifiSubTab[] = ['devices', 'clients', 'wlans', 'health'];
+    const VALID_TOPO_TABS: TopoSubTab[] = ['canvas', 'racks', 'scanner', 'ipam', 'docs'];
 
     const vm = getCurrentInstance()!.proxy;
 
@@ -363,6 +484,13 @@ export default defineComponent({
     const activeTab = computed<MainTab>(() => {
       const name = String(vm.$route.name || 'overview') as MainTab;
       return VALID_TABS.indexOf(name) !== -1 ? name : 'overview';
+    });
+
+    const DEVICE_TABS: MainTab[] = ['servers', 'proxmox', 'docker', 'opnsense', 'switches', 'hikvision', 'unifi'];
+    const isDevicesRoute = computed<boolean>(() => DEVICE_TABS.indexOf(activeTab.value) !== -1);
+    const devicesMenuOpen = ref<boolean>(isDevicesRoute.value);
+    watch(isDevicesRoute, (inDevices) => {
+      if (inDevices) devicesMenuOpen.value = true;
     });
 
     const selectedServerId = computed<string>(() => {
@@ -382,11 +510,33 @@ export default defineComponent({
       return vm.$route.name === 'opnsense' && VALID_OPN_TABS.indexOf(sub) !== -1 ? sub : 'overview';
     });
 
+    const switchesSubTab = computed<SwSubTab>(() => {
+      const sub = String(vm.$route.params.subTab || 'overview') as SwSubTab;
+      return vm.$route.name === 'switches' && VALID_SW_TABS.indexOf(sub) !== -1 ? sub : 'overview';
+    });
+
+    const hikvisionSubTab = computed<HikSubTab>(() => {
+      const sub = String(vm.$route.params.subTab || 'live') as HikSubTab;
+      return vm.$route.name === 'hikvision' && VALID_HIK_TABS.indexOf(sub) !== -1 ? sub : 'live';
+    });
+
+    const unifiSubTab = computed<UnifiSubTab>(() => {
+      const sub = String(vm.$route.params.subTab || 'devices') as UnifiSubTab;
+      return vm.$route.name === 'unifi' && VALID_UNIFI_TABS.indexOf(sub) !== -1 ? sub : 'devices';
+    });
+
+    const topologySubTab = computed<TopoSubTab>(() => {
+      const sub = String(vm.$route.params.subTab || 'racks') as TopoSubTab;
+      return vm.$route.name === 'topology' && VALID_TOPO_TABS.indexOf(sub) !== -1 ? sub : 'racks';
+    });
+
     const overview = ref<OverviewResponse | null>(null);
     const realServers = ref<SshServerPublic[]>([]);
     const realProxmox = ref<ProxmoxConfigPublic[]>([]);
     const realTailscale = ref<TailscaleConfigPublic[]>([]);
     const realOpnsense = ref<OpnsenseConfigPublic[]>([]);
+    const realHikvision = ref<HikvisionConfigPublic[]>([]);
+    const realUnifi = ref<UnifiConfigPublic[]>([]);
     const streamState = ref<StreamState>('connecting');
     const backendError = ref('');
     const refreshing = ref(false);
@@ -417,6 +567,14 @@ export default defineComponent({
         void router.replace(sub === 'nodes' ? { name: 'proxmox' } : { name: 'proxmox', params: { subTab: sub } });
       } else if (activeTab.value === 'opnsense') {
         void router.replace(sub === 'overview' ? { name: 'opnsense' } : { name: 'opnsense', params: { subTab: sub } });
+      } else if (activeTab.value === 'switches') {
+        void router.replace(sub === 'overview' ? { name: 'switches' } : { name: 'switches', params: { subTab: sub } });
+      } else if (activeTab.value === 'hikvision') {
+        void router.replace(sub === 'live' ? { name: 'hikvision' } : { name: 'hikvision', params: { subTab: sub } });
+      } else if (activeTab.value === 'unifi') {
+        void router.replace(sub === 'devices' ? { name: 'unifi' } : { name: 'unifi', params: { subTab: sub } });
+      } else if (activeTab.value === 'topology') {
+        void router.replace(sub === 'racks' ? { name: 'topology' } : { name: 'topology', params: { subTab: sub } });
       }
     }
 
@@ -447,6 +605,8 @@ export default defineComponent({
           realProxmox: realProxmox.value,
           realTailscale: realTailscale.value,
           realOpnsense: realOpnsense.value,
+          realHikvision: realHikvision.value,
+          realUnifi: realUnifi.value,
         };
       }
       if (tab === 'servers') {
@@ -467,6 +627,30 @@ export default defineComponent({
           initialSubTab: opnsenseSubTab.value,
         };
       }
+      if (tab === 'switches') {
+        return {
+          overview: overview.value,
+          initialSubTab: switchesSubTab.value,
+        };
+      }
+      if (tab === 'hikvision') {
+        return {
+          overview: overview.value,
+          initialSubTab: hikvisionSubTab.value,
+        };
+      }
+      if (tab === 'unifi') {
+        return {
+          overview: overview.value,
+          initialSubTab: unifiSubTab.value,
+        };
+      }
+      if (tab === 'topology') {
+        return {
+          overview: overview.value,
+          initialSubTab: topologySubTab.value,
+        };
+      }
       return {
         overview: overview.value,
       };
@@ -484,6 +668,7 @@ export default defineComponent({
           proxmoxModalOpen.value ||
           tailscaleModalOpen.value ||
           opnsenseModalOpen.value ||
+          hikvisionModalOpen.value ||
           deleteTarget.value,
       );
     }
@@ -552,10 +737,14 @@ export default defineComponent({
     const editingTailscale = ref<TailscaleConfigPublic | null>(null);
     const opnsenseModalOpen = ref(false);
     const editingOpnsense = ref<OpnsenseConfigPublic | null>(null);
+    const hikvisionModalOpen = ref(false);
+    const editingHikvision = ref<HikvisionConfigPublic | null>(null);
+    const unifiModalOpen = ref(false);
+    const editingUnifi = ref<UnifiConfigPublic | null>(null);
     const terminalTarget = ref<TerminalTarget | null>(null);
     const vncTarget = ref<VncTarget | null>(null);
     const deleteTarget = ref<{
-      kind: 'server' | 'proxmox' | 'tailscale' | 'opnsense';
+      kind: 'server' | 'proxmox' | 'tailscale' | 'opnsense' | 'hikvision' | 'unifi';
       id: string;
       name: string;
     } | null>(null);
@@ -579,6 +768,8 @@ export default defineComponent({
           realProxmox.value = Array.isArray(msg.proxmox) ? msg.proxmox : [];
           realTailscale.value = Array.isArray(msg.tailscale) ? msg.tailscale : [];
           realOpnsense.value = Array.isArray(msg.opnsense) ? msg.opnsense : [];
+          realHikvision.value = Array.isArray(msg.hikvision) ? msg.hikvision : [];
+          realUnifi.value = Array.isArray(msg.unifi) ? msg.unifi : [];
           backendError.value = '';
           refreshing.value = false;
         },
@@ -699,18 +890,22 @@ export default defineComponent({
         return;
       }
       try {
-        const [ov, srvs, pves, tss, opns] = await Promise.all([
+        const [ov, srvs, pves, tss, opns, hiks, unifis] = await Promise.all([
           api.getOverview(),
           api.listServers(),
           api.listProxmox(),
           api.listTailscale(),
           api.listOpnsense(),
+          api.listHikvision(),
+          api.listUnifi(),
         ]);
         overview.value = ov;
         realServers.value = Array.isArray(srvs) ? srvs : [];
         realProxmox.value = Array.isArray(pves) ? pves : [];
         realTailscale.value = Array.isArray(tss) ? tss : [];
         realOpnsense.value = Array.isArray(opns) ? opns : [];
+        realHikvision.value = Array.isArray(hiks) ? hiks : [];
+        realUnifi.value = Array.isArray(unifis) ? unifis : [];
         backendError.value = '';
       } catch (err) {
         backendError.value = err instanceof Error ? err.message : 'Unable to reach backend API';
@@ -727,16 +922,20 @@ export default defineComponent({
           return;
         }
         overview.value = await api.triggerPoll();
-        const [srvs, pves, tss, opns] = await Promise.all([
+        const [srvs, pves, tss, opns, hiks, unifis] = await Promise.all([
           api.listServers(),
           api.listProxmox(),
           api.listTailscale(),
           api.listOpnsense(),
+          api.listHikvision(),
+          api.listUnifi(),
         ]);
         realServers.value = Array.isArray(srvs) ? srvs : [];
         realProxmox.value = Array.isArray(pves) ? pves : [];
         realTailscale.value = Array.isArray(tss) ? tss : [];
         realOpnsense.value = Array.isArray(opns) ? opns : [];
+        realHikvision.value = Array.isArray(hiks) ? hiks : [];
+        realUnifi.value = Array.isArray(unifis) ? unifis : [];
         backendError.value = '';
       } catch (err) {
         backendError.value = err instanceof Error ? err.message : 'Unable to reach backend API';
@@ -794,6 +993,26 @@ export default defineComponent({
       opnsenseModalOpen.value = true;
     }
 
+    function openAddHikvision() {
+      editingHikvision.value = null;
+      hikvisionModalOpen.value = true;
+    }
+
+    function openEditHikvision(hik: HikvisionConfigPublic) {
+      editingHikvision.value = hik;
+      hikvisionModalOpen.value = true;
+    }
+
+    function openAddUnifi() {
+      editingUnifi.value = null;
+      unifiModalOpen.value = true;
+    }
+
+    function openEditUnifi(u: UnifiConfigPublic) {
+      editingUnifi.value = u;
+      unifiModalOpen.value = true;
+    }
+
     function importTailscaleAsSsh(device: TailscaleDevice) {
       editingServer.value = null;
       serverPrefill.value = {
@@ -830,6 +1049,14 @@ export default defineComponent({
       deleteTarget.value = { kind: 'opnsense', id: opn.id, name: opn.name };
     }
 
+    function confirmDeleteHikvision(hik: HikvisionConfigPublic) {
+      deleteTarget.value = { kind: 'hikvision', id: hik.id, name: hik.name };
+    }
+
+    function confirmDeleteUnifi(u: UnifiConfigPublic) {
+      deleteTarget.value = { kind: 'unifi', id: u.id, name: u.name };
+    }
+
     async function executeDelete() {
       if (!deleteTarget.value) return;
       const t = deleteTarget.value;
@@ -841,6 +1068,10 @@ export default defineComponent({
           await api.deleteProxmox(t.id);
         } else if (t.kind === 'tailscale') {
           await api.deleteTailscale(t.id);
+        } else if (t.kind === 'hikvision') {
+          await api.deleteHikvision(t.id);
+        } else if (t.kind === 'unifi') {
+          await api.deleteUnifi(t.id);
         } else {
           await api.deleteOpnsense(t.id);
         }
@@ -920,16 +1151,22 @@ export default defineComponent({
       handleLogout,
       enterIdleSplash,
       activeTab,
+      isDevicesRoute,
+      devicesMenuOpen,
       routeProps,
       navigateToTab,
       onSubTabChange,
       proxmoxSubTab,
       opnsenseSubTab,
+      hikvisionSubTab,
+      unifiSubTab,
       overview,
       realServers,
       realProxmox,
       realTailscale,
       realOpnsense,
+      realHikvision,
+      realUnifi,
       streamState,
       backendError,
       effectiveSettings,
@@ -950,6 +1187,10 @@ export default defineComponent({
       editingTailscale,
       opnsenseModalOpen,
       editingOpnsense,
+      hikvisionModalOpen,
+      editingHikvision,
+      unifiModalOpen,
+      editingUnifi,
       terminalTarget,
       vncTarget,
       deleteTarget,
@@ -965,12 +1206,18 @@ export default defineComponent({
       openEditTailscale,
       openAddOpnsense,
       openEditOpnsense,
+      openAddHikvision,
+      openEditHikvision,
+      openAddUnifi,
+      openEditUnifi,
       importTailscaleAsSsh,
       importTailscaleAsProxmox,
       confirmDeleteServer,
       confirmDeleteProxmox,
       confirmDeleteTailscale,
       confirmDeleteOpnsense,
+      confirmDeleteHikvision,
+      confirmDeleteUnifi,
       executeDelete,
       onConnectionSaved,
       toggleFullscreen,

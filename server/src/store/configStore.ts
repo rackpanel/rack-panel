@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { eq } from 'drizzle-orm';
 import type {
   AuthUserPublic,
+  HikvisionConfig,
+  HikvisionConfigPublic,
   OpnsenseConfig,
   OpnsenseConfigPublic,
   PanelSettings,
@@ -13,8 +16,22 @@ import type {
   SshServerPublic,
   TailscaleConfig,
   TailscaleConfigPublic,
+  UnifiConfig,
+  UnifiConfigPublic,
   UserRole,
 } from '../../../shared/types.js';
+import type { TursoDatabase } from '../db/tursoDb.js';
+import {
+  appSettings,
+  hikvisionConfigs,
+  opnsenseConfigs,
+  proxmoxConfigs,
+  sessions,
+  sshServers,
+  tailscaleConfigs,
+  unifiConfigs,
+  users,
+} from '../db/schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +82,8 @@ interface PersistedData {
   proxmox: ProxmoxConfig[];
   tailscale: TailscaleConfig[];
   opnsense: OpnsenseConfig[];
+  hikvision: HikvisionConfig[];
+  unifi: UnifiConfig[];
 }
 
 function hashPassword(plain: string): string {
@@ -150,9 +169,378 @@ function decryptSecret(value?: string): string | undefined {
 
 export class ConfigStore {
   private data: PersistedData;
+  private dbReady = false;
+  private saveScheduled = false;
+  private persistInFlight = false;
+  private persistQueued = false;
 
-  constructor() {
-    this.data = this.load();
+  constructor(private readonly db?: TursoDatabase) {
+    this.data = this.db ? this.emptyData() : this.load();
+  }
+
+  private emptyData(): PersistedData {
+    return {
+      settings: { ...DEFAULT_SETTINGS },
+      users: [],
+      sessions: [],
+      servers: [],
+      proxmox: [],
+      tailscale: [],
+      opnsense: [],
+      hikvision: [],
+      unifi: [],
+    };
+  }
+
+  async init(): Promise<void> {
+    if (!this.db) return;
+    await this.db.init();
+
+    const [userRows, settingRows] = await Promise.all([
+      this.db.drizzle.select({ id: users.id }).from(users).limit(1),
+      this.db.drizzle.select({ key: appSettings.key }).from(appSettings).where(eq(appSettings.key, 'settings')).limit(1),
+    ]);
+    const hasRowsInDb = userRows.length > 0 || settingRows.length > 0;
+
+    if (!hasRowsInDb && fs.existsSync(CONFIG_FILE)) {
+      this.data = this.load();
+      await this.persistToDb();
+    } else if (hasRowsInDb) {
+      this.data = await this.loadFromDb();
+    } else {
+      this.data = this.emptyData();
+      await this.persistToDb();
+    }
+    this.dbReady = true;
+  }
+
+  private async loadFromDb(): Promise<PersistedData> {
+    if (!this.db) return this.emptyData();
+    const out = this.emptyData();
+    const dz = this.db.drizzle;
+
+    const settingsRows = await dz.select().from(appSettings).where(eq(appSettings.key, 'settings'));
+    if (settingsRows[0]?.valueJson) {
+      try {
+        out.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(settingsRows[0].valueJson) };
+      } catch {
+        // keep default
+      }
+    }
+
+    const pinRows = await dz.select().from(appSettings).where(eq(appSettings.key, 'splashPin'));
+    if (pinRows[0]?.valueJson) {
+      out.splashPin = decryptSecret(pinRows[0].valueJson);
+    }
+
+    const userRows = await dz.select().from(users);
+    out.users = userRows.map((r) => ({
+      id: r.id,
+      username: r.username,
+      displayName: r.displayName,
+      role: r.role as UserRole,
+      passwordHash: r.passwordHash,
+      createdAt: r.createdAt,
+      lastLoginAt: r.lastLoginAt || undefined,
+    }));
+
+    const sessRows = await dz.select().from(sessions);
+    out.sessions = sessRows
+      .map((r) => ({
+        token: decryptSecret(r.token) || '',
+        userId: r.userId,
+        pinLocked: Boolean(r.pinLocked),
+        createdAt: r.createdAt,
+        lastUsedAt: r.lastUsedAt,
+        userAgent: r.userAgent || undefined,
+      }))
+      .filter((s) => Boolean(s.token));
+
+    const srvRows = await dz.select().from(sshServers);
+    out.servers = srvRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      port: r.port,
+      username: r.username,
+      authMethod: r.authMethod as SshServerConfig['authMethod'],
+      password: decryptSecret(r.password || undefined),
+      privateKey: decryptSecret(r.privateKey || undefined),
+      passphrase: decryptSecret(r.passphrase || undefined),
+      rackUnit: r.rackUnit || '',
+      tags: JSON.parse(r.tagsJson || '[]'),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    const pveRows = await dz.select().from(proxmoxConfigs);
+    out.proxmox = pveRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      port: r.port,
+      authType: r.authType as ProxmoxConfig['authType'],
+      username: r.username,
+      password: decryptSecret(r.password || undefined),
+      tokenId: r.tokenId || '',
+      tokenSecret: decryptSecret(r.tokenSecret || undefined),
+      allowInsecureTls: Boolean(r.allowInsecureTls),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    const tsRows = await dz.select().from(tailscaleConfigs);
+    out.tailscale = tsRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      mode: r.mode as TailscaleConfig['mode'],
+      tailnet: r.tailnet,
+      apiKey: decryptSecret(r.apiKey || undefined),
+      oauthClientId: r.oauthClientId || undefined,
+      oauthClientSecret: decryptSecret(r.oauthClientSecret || undefined),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    const opnRows = await dz.select().from(opnsenseConfigs);
+    out.opnsense = opnRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      port: r.port,
+      protocol: r.protocol as OpnsenseConfig['protocol'],
+      apiKey: decryptSecret(r.apiKey || undefined),
+      apiSecret: decryptSecret(r.apiSecret || undefined),
+      allowInsecureTls: Boolean(r.allowInsecureTls),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    const hikRows = await dz.select().from(hikvisionConfigs);
+    out.hikvision = hikRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      port: r.port,
+      protocol: r.protocol as HikvisionConfig['protocol'],
+      rtspPort: r.rtspPort,
+      username: r.username,
+      password: decryptSecret(r.password || undefined),
+      deviceKind: r.deviceKind as HikvisionConfig['deviceKind'],
+      allowInsecureTls: Boolean(r.allowInsecureTls),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    const uniRows = await dz.select().from(unifiConfigs);
+    out.unifi = uniRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      port: r.port,
+      controllerType: r.controllerType as UnifiConfig['controllerType'],
+      site: r.site || 'default',
+      username: r.username || undefined,
+      password: decryptSecret(r.password || undefined),
+      apiKey: decryptSecret(r.apiKey || undefined),
+      allowInsecureTls: Boolean(r.allowInsecureTls),
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
+    return out;
+  }
+
+  private persistToDb(): Promise<void> {
+    if (!this.db) return Promise.resolve();
+    const snap = JSON.parse(JSON.stringify(this.data)) as PersistedData;
+    const { hasSplashPin: _omit, ...cleanSettings } = snap.settings;
+    const encPin = encryptSecret(snap.splashPin) || null;
+
+    return this.db.runDrizzleTransaction(async (tx) => {
+      await tx
+        .insert(appSettings)
+        .values({ key: 'settings', valueJson: JSON.stringify(cleanSettings) })
+        .onConflictDoUpdate({ target: appSettings.key, set: { valueJson: JSON.stringify(cleanSettings) } });
+
+      if (encPin) {
+        await tx
+          .insert(appSettings)
+          .values({ key: 'splashPin', valueJson: encPin })
+          .onConflictDoUpdate({ target: appSettings.key, set: { valueJson: encPin } });
+      } else {
+        await tx.delete(appSettings).where(eq(appSettings.key, 'splashPin'));
+      }
+
+      await tx.delete(users);
+      if (snap.users.length > 0) {
+        await tx
+          .insert(users)
+          .values(
+            snap.users.map((u) => ({
+              id: u.id,
+              username: u.username,
+              displayName: u.displayName,
+              role: u.role,
+              passwordHash: u.passwordHash,
+              createdAt: u.createdAt,
+              lastLoginAt: u.lastLoginAt || null,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(sessions);
+      if (snap.sessions.length > 0) {
+        await tx
+          .insert(sessions)
+          .values(
+            snap.sessions.map((s) => ({
+              token: encryptSecret(s.token) || s.token,
+              userId: s.userId,
+              pinLocked: s.pinLocked ? 1 : 0,
+              createdAt: s.createdAt,
+              lastUsedAt: s.lastUsedAt,
+              userAgent: s.userAgent || null,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(sshServers);
+      if (snap.servers.length > 0) {
+        await tx
+          .insert(sshServers)
+          .values(
+            snap.servers.map((s) => ({
+              id: s.id,
+              name: s.name,
+              host: s.host,
+              port: s.port,
+              username: s.username,
+              authMethod: s.authMethod,
+              password: encryptSecret(s.password) || null,
+              privateKey: encryptSecret(s.privateKey) || null,
+              passphrase: encryptSecret(s.passphrase) || null,
+              rackUnit: s.rackUnit || '',
+              tagsJson: JSON.stringify(s.tags || []),
+              enabled: s.enabled ? 1 : 0,
+              createdAt: s.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(proxmoxConfigs);
+      if (snap.proxmox.length > 0) {
+        await tx
+          .insert(proxmoxConfigs)
+          .values(
+            snap.proxmox.map((p) => ({
+              id: p.id,
+              name: p.name,
+              host: p.host,
+              port: p.port,
+              authType: p.authType,
+              username: p.username,
+              password: encryptSecret(p.password) || null,
+              tokenId: p.tokenId || '',
+              tokenSecret: encryptSecret(p.tokenSecret) || null,
+              allowInsecureTls: p.allowInsecureTls ? 1 : 0,
+              enabled: p.enabled ? 1 : 0,
+              createdAt: p.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(tailscaleConfigs);
+      if (snap.tailscale.length > 0) {
+        await tx
+          .insert(tailscaleConfigs)
+          .values(
+            snap.tailscale.map((t) => ({
+              id: t.id,
+              name: t.name,
+              mode: t.mode,
+              tailnet: t.tailnet,
+              apiKey: encryptSecret(t.apiKey) || null,
+              oauthClientId: t.oauthClientId || null,
+              oauthClientSecret: encryptSecret(t.oauthClientSecret) || null,
+              enabled: t.enabled ? 1 : 0,
+              createdAt: t.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(opnsenseConfigs);
+      if (snap.opnsense.length > 0) {
+        await tx
+          .insert(opnsenseConfigs)
+          .values(
+            snap.opnsense.map((o) => ({
+              id: o.id,
+              name: o.name,
+              host: o.host,
+              port: o.port,
+              protocol: o.protocol,
+              apiKey: encryptSecret(o.apiKey) || null,
+              apiSecret: encryptSecret(o.apiSecret) || null,
+              allowInsecureTls: o.allowInsecureTls ? 1 : 0,
+              enabled: o.enabled ? 1 : 0,
+              createdAt: o.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(hikvisionConfigs);
+      if (snap.hikvision.length > 0) {
+        await tx
+          .insert(hikvisionConfigs)
+          .values(
+            snap.hikvision.map((h) => ({
+              id: h.id,
+              name: h.name,
+              host: h.host,
+              port: h.port,
+              protocol: h.protocol,
+              rtspPort: h.rtspPort,
+              username: h.username,
+              password: encryptSecret(h.password) || null,
+              deviceKind: h.deviceKind,
+              allowInsecureTls: h.allowInsecureTls ? 1 : 0,
+              enabled: h.enabled ? 1 : 0,
+              createdAt: h.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      await tx.delete(unifiConfigs);
+      if ((snap.unifi ?? []).length > 0) {
+        await tx
+          .insert(unifiConfigs)
+          .values(
+            (snap.unifi ?? []).map((u) => ({
+              id: u.id,
+              name: u.name,
+              host: u.host,
+              port: u.port,
+              controllerType: u.controllerType,
+              site: u.site || 'default',
+              username: u.username || null,
+              password: encryptSecret(u.password) || null,
+              apiKey: encryptSecret(u.apiKey) || null,
+              allowInsecureTls: u.allowInsecureTls ? 1 : 0,
+              enabled: u.enabled ? 1 : 0,
+              createdAt: u.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+    });
   }
 
   private load(): PersistedData {
@@ -166,6 +554,8 @@ export class ConfigStore {
         proxmox: [],
         tailscale: [],
         opnsense: [],
+        hikvision: [],
+        unifi: [],
       };
       this.writeRaw(initial);
       return initial;
@@ -205,6 +595,15 @@ export class ConfigStore {
           apiKey: decryptSecret(o.apiKey),
           apiSecret: decryptSecret(o.apiSecret),
         })),
+        hikvision: (parsed.hikvision ?? []).map((h) => ({
+          ...h,
+          password: decryptSecret(h.password),
+        })),
+        unifi: (parsed.unifi ?? []).map((u) => ({
+          ...u,
+          password: decryptSecret(u.password),
+          apiKey: decryptSecret(u.apiKey),
+        })),
       };
     } catch {
       return {
@@ -215,6 +614,8 @@ export class ConfigStore {
         proxmox: [],
         tailscale: [],
         opnsense: [],
+        hikvision: [],
+        unifi: [],
       };
     }
   }
@@ -251,11 +652,51 @@ export class ConfigStore {
         apiKey: encryptSecret(o.apiKey),
         apiSecret: encryptSecret(o.apiSecret),
       })),
+      hikvision: (data.hikvision ?? []).map((h) => ({
+        ...h,
+        password: encryptSecret(h.password),
+      })),
+      unifi: (data.unifi ?? []).map((u) => ({
+        ...u,
+        password: encryptSecret(u.password),
+        apiKey: encryptSecret(u.apiKey),
+      })),
     };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
   }
 
+  private flushDbSave(): void {
+    if (this.persistInFlight) {
+      this.persistQueued = true;
+      return;
+    }
+    this.persistInFlight = true;
+    void this.persistToDb()
+      .catch((err) => {
+        console.error('[turso] configStore persist error:', err);
+      })
+      .finally(() => {
+        this.persistInFlight = false;
+        if (this.persistQueued) {
+          this.persistQueued = false;
+          this.flushDbSave();
+        }
+      });
+  }
+
   private save(): void {
+    if (this.db) {
+      if (this.dbReady) {
+        if (!this.saveScheduled) {
+          this.saveScheduled = true;
+          queueMicrotask(() => {
+            this.saveScheduled = false;
+            this.flushDbSave();
+          });
+        }
+      }
+      return;
+    }
     this.writeRaw(this.data);
   }
 
@@ -266,6 +707,29 @@ export class ConfigStore {
       splashPinEnabled: Boolean(this.data.settings.splashPinEnabled && hasSplashPin),
       hasSplashPin,
     };
+  }
+
+  async factoryResetKeepUsers(): Promise<PanelSettings> {
+    this.data = {
+      settings: { ...DEFAULT_SETTINGS },
+      splashPin: undefined,
+      users: [...(this.data.users ?? [])],
+      sessions: [...(this.data.sessions ?? [])],
+      servers: [],
+      proxmox: [],
+      tailscale: [],
+      opnsense: [],
+      hikvision: [],
+      unifi: [],
+    };
+    if (this.db) {
+      if (this.dbReady) {
+        await this.persistToDb();
+      }
+    } else {
+      this.writeRaw(this.data);
+    }
+    return this.getSettings();
   }
 
   updateSettings(patch: Partial<PanelSettings> & { splashPin?: string }): PanelSettings {
@@ -685,6 +1149,130 @@ export class ConfigStore {
     const before = this.data.opnsense.length;
     this.data.opnsense = this.data.opnsense.filter((o) => o.id !== id);
     if (this.data.opnsense.length !== before) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  listHikvision(): HikvisionConfig[] {
+    return (this.data.hikvision ?? []).map((h) => ({ ...h }));
+  }
+
+  toPublicHikvision(h: HikvisionConfig): HikvisionConfigPublic {
+    const { password, ...rest } = h;
+    return {
+      ...rest,
+      hasPassword: Boolean(password),
+    };
+  }
+
+  listHikvisionPublic(): HikvisionConfigPublic[] {
+    return this.listHikvision().map((h) => this.toPublicHikvision(h));
+  }
+
+  getHikvision(id: string): HikvisionConfig | undefined {
+    return (this.data.hikvision ?? []).find((h) => h.id === id);
+  }
+
+  upsertHikvision(input: Partial<HikvisionConfig> & { name: string; host: string }): HikvisionConfig {
+    if (!this.data.hikvision) this.data.hikvision = [];
+    const existing = input.id ? this.data.hikvision.find((h) => h.id === input.id) : undefined;
+    const protocol = input.protocol ?? existing?.protocol ?? 'http';
+    const record: HikvisionConfig = {
+      id: existing?.id ?? `hik-${crypto.randomBytes(5).toString('hex')}`,
+      name: input.name.trim(),
+      host: input.host.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+      port: Number(input.port) || existing?.port || (protocol === 'https' ? 443 : 80),
+      protocol,
+      rtspPort: Number(input.rtspPort) || existing?.rtspPort || 554,
+      username: (input.username ?? existing?.username ?? 'admin').trim() || 'admin',
+      password:
+        input.password !== undefined && input.password !== '' ? input.password : existing?.password,
+      deviceKind: input.deviceKind ?? existing?.deviceKind ?? 'auto',
+      allowInsecureTls: input.allowInsecureTls ?? existing?.allowInsecureTls ?? true,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+
+    if (existing) {
+      const idx = this.data.hikvision.findIndex((h) => h.id === existing.id);
+      this.data.hikvision[idx] = record;
+    } else {
+      this.data.hikvision.push(record);
+    }
+    this.save();
+    return record;
+  }
+
+  deleteHikvision(id: string): boolean {
+    if (!this.data.hikvision) return false;
+    const before = this.data.hikvision.length;
+    this.data.hikvision = this.data.hikvision.filter((h) => h.id !== id);
+    if (this.data.hikvision.length !== before) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  listUnifi(): UnifiConfig[] {
+    return (this.data.unifi ?? []).map((u) => ({ ...u }));
+  }
+
+  toPublicUnifi(u: UnifiConfig): UnifiConfigPublic {
+    const { password, apiKey, ...rest } = u;
+    return {
+      ...rest,
+      hasPassword: Boolean(password),
+      hasApiKey: Boolean(apiKey),
+    };
+  }
+
+  listUnifiPublic(): UnifiConfigPublic[] {
+    return this.listUnifi().map((u) => this.toPublicUnifi(u));
+  }
+
+  getUnifi(id: string): UnifiConfig | undefined {
+    return (this.data.unifi ?? []).find((u) => u.id === id);
+  }
+
+  upsertUnifi(input: Partial<UnifiConfig> & { name: string; host: string }): UnifiConfig {
+    if (!this.data.unifi) this.data.unifi = [];
+    const existing = input.id ? this.data.unifi.find((u) => u.id === input.id) : undefined;
+    const controllerType = input.controllerType ?? existing?.controllerType ?? 'auto';
+    const record: UnifiConfig = {
+      id: existing?.id ?? `uni-${crypto.randomBytes(5).toString('hex')}`,
+      name: input.name.trim(),
+      host: input.host.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+      port: Number(input.port) || existing?.port || (controllerType === 'classic' ? 8443 : 443),
+      controllerType,
+      site: (input.site ?? existing?.site ?? 'default').trim() || 'default',
+      username: input.username !== undefined ? input.username.trim() : existing?.username ?? 'admin',
+      password:
+        input.password !== undefined && input.password !== '' ? input.password : existing?.password,
+      apiKey:
+        input.apiKey !== undefined && input.apiKey !== '' ? input.apiKey.trim() : existing?.apiKey,
+      allowInsecureTls: input.allowInsecureTls ?? existing?.allowInsecureTls ?? true,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+
+    if (existing) {
+      const idx = this.data.unifi.findIndex((u) => u.id === existing.id);
+      this.data.unifi[idx] = record;
+    } else {
+      this.data.unifi.push(record);
+    }
+    this.save();
+    return record;
+  }
+
+  deleteUnifi(id: string): boolean {
+    if (!this.data.unifi) return false;
+    const before = this.data.unifi.length;
+    this.data.unifi = this.data.unifi.filter((u) => u.id !== id);
+    if (this.data.unifi.length !== before) {
       this.save();
       return true;
     }

@@ -10,8 +10,16 @@
     "start": "node dist/server/src/index.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@tsed/common": "^8.47.1",
+    "@tsed/core": "^8.47.1",
+    "@tsed/di": "^8.47.1",
+    "@tsed/platform-express": "^8.47.1",
+    "@tsed/schema": "^8.47.1",
     "cors": "^2.8.5",
+    "drizzle-orm": "^0.45.4",
     "express": "^4.21.2",
+    "reflect-metadata": "^0.2.2",
     "ssh2": "^1.16.0",
     "ws": "^8.23.0"
   },

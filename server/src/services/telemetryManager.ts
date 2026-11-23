@@ -2,36 +2,50 @@ import type {
   AlertItem,
   CommandResult,
   GuestPowerAction,
+  HikvisionConfig,
+  HikvisionSnapshot,
   OpnsenseConfig,
   OpnsenseServiceAction,
   OpnsenseSnapshot,
   OverviewResponse,
   ProxmoxClusterSnapshot,
   ProxmoxConfig,
+  ProxmoxGuest,
+  ProxmoxNodeMetrics,
+  ProxmoxStorage,
   SshServerConfig,
   SshServerMetrics,
   SshServerPublic,
   TailscaleConfig,
   TailscaleSnapshot,
+  UnifiConfig,
+  UnifiSnapshot,
 } from '../../../shared/types.js';
 import { ConfigStore } from '../store/configStore.js';
 import { SshCollector } from './sshCollector.js';
 import { ProxmoxClient } from './proxmoxClient.js';
 import { TailscaleClient } from './tailscaleClient.js';
 import { OpnsenseClient } from './opnsenseClient.js';
+import { HikvisionClient } from './hikvisionClient.js';
+import { UnifiClient } from './unifiClient.js';
 import { DemoProvider } from './demoProvider.js';
 import { DeviceIdentityRegistry } from './deviceRegistry.js';
 
 export class TelemetryManager {
   private sshMetrics = new Map<string, SshServerMetrics>();
   private proxmoxSnapshots = new Map<string, ProxmoxClusterSnapshot>();
+  private sshProxmoxSnapshots = new Map<string, ProxmoxClusterSnapshot>();
+  private autoProxmoxPromoted = new Set<string>();
   private tailscaleSnapshots = new Map<string, TailscaleSnapshot>();
   private opnsenseSnapshots = new Map<string, OpnsenseSnapshot>();
+  private hikvisionSnapshots = new Map<string, HikvisionSnapshot>();
+  private unifiSnapshots = new Map<string, UnifiSnapshot>();
   private tailscaleLastPoll = new Map<string, number>();
   private preferredSshPrimary = new Map<string, string>();
   private preferredProxmoxPrimary = new Map<string, string>();
   private preferredTailscalePrimary = new Map<string, string>();
   private preferredOpnsensePrimary = new Map<string, string>();
+  private preferredHikvisionPrimary = new Map<string, string>();
   private listeners = new Set<() => void>();
   private pollTimer: NodeJS.Timeout | null = null;
   private polling = false;
@@ -44,6 +58,8 @@ export class TelemetryManager {
     readonly proxmox: ProxmoxClient,
     readonly tailscale: TailscaleClient,
     readonly opnsense: OpnsenseClient,
+    readonly hikvision: HikvisionClient,
+    readonly unifi: UnifiClient,
   ) {}
 
   onUpdate(listener: () => void): () => void {
@@ -169,6 +185,30 @@ export class TelemetryManager {
       });
     }
 
+    // Register Hikvision NVRs / DVRs / IP Cameras
+    const hikvisionList = this.store.listHikvision();
+    for (const hik of hikvisionList) {
+      const snap = this.hikvisionSnapshots.get(hik.id);
+      const ips: string[] = [hik.host];
+      const hostnames: string[] = [hik.host];
+      let machineId: string | undefined;
+      if (snap && snap.status === 'online') {
+        if (snap.deviceName && snap.deviceName !== '-') hostnames.push(snap.deviceName);
+        if (snap.serialNumber && snap.serialNumber !== '-') {
+          machineId = snap.serialNumber;
+        } else if (snap.macAddress && snap.macAddress !== '-') {
+          machineId = snap.macAddress;
+        }
+      }
+      this.devices.upsert({
+        entityKey: `hikvision:${hik.id}`,
+        source: 'hikvision',
+        machineId,
+        ips,
+        hostnames,
+      });
+    }
+
     this.devices.rebuild();
   }
 
@@ -221,6 +261,8 @@ export class TelemetryManager {
       const enabledProxmox = this.store.listProxmox().filter((p) => p.enabled);
       const enabledTailscale = this.store.listTailscale().filter((t) => t.enabled);
       const enabledOpnsense = this.store.listOpnsense().filter((o) => o.enabled);
+      const enabledHikvision = this.store.listHikvision().filter((h) => h.enabled);
+      const enabledUnifi = this.store.listUnifi().filter((u) => u.enabled);
       const now = Date.now();
 
       // Seed identity graph from prior observations + current configs
@@ -344,6 +386,16 @@ export class TelemetryManager {
       // Rebuild identity graph with newly learned OS machineId, hostname, and all NIC IPs from SSH
       this.rebuildDeviceRegistry();
 
+      // Auto-detect any SSH servers that are also Proxmox VE hosts and surface them on the Proxmox page
+      await Promise.all(
+        enabledServers.map(async (srv) => {
+          const m = this.sshMetrics.get(srv.id);
+          if (m && !m.deduplicatedFrom) {
+            await this.syncSshProxmoxHost(srv, m);
+          }
+        }),
+      );
+
       // Build map of live online SSH metrics by canonical physical device ID so Proxmox can reuse them
       const onlineSshByDevice = new Map<string, SshServerMetrics>();
       for (const srv of enabledServers) {
@@ -371,6 +423,14 @@ export class TelemetryManager {
         const list = opnGroups.get(devId) ?? [];
         list.push(opn);
         opnGroups.set(devId, list);
+      }
+
+      const hikGroups = new Map<string, HikvisionConfig[]>();
+      for (const hik of enabledHikvision) {
+        const devId = this.devices.getCanonicalIdFor(`hikvision:${hik.id}`);
+        const list = hikGroups.get(devId) ?? [];
+        list.push(hik);
+        hikGroups.set(devId, list);
       }
 
       await Promise.all([
@@ -470,6 +530,49 @@ export class TelemetryManager {
             }
           }
         }),
+        ...Array.from(hikGroups.entries()).map(async ([devId, group]) => {
+          const ordered = this.sortGroupWithPreferred(
+            group,
+            this.preferredHikvisionPrimary.get(devId),
+            (h) => this.hikvisionSnapshots.get(h.id)?.status === 'online',
+          );
+
+          let winner = ordered[0];
+          let snap: HikvisionSnapshot | null = null;
+
+          for (const candidate of ordered) {
+            const res = await this.hikvision.collect(candidate);
+            winner = candidate;
+            snap = res;
+            if (res.status === 'online') {
+              this.preferredHikvisionPrimary.set(devId, candidate.id);
+              break;
+            }
+          }
+
+          if (snap) {
+            for (const cfg of group) {
+              if (cfg.id === winner.id) {
+                this.hikvisionSnapshots.set(cfg.id, { ...snap, deduplicatedFrom: undefined });
+              } else {
+                this.hikvisionSnapshots.set(cfg.id, {
+                  ...snap,
+                  configId: cfg.id,
+                  name: cfg.name,
+                  host: cfg.host,
+                  deduplicatedFrom: `Hikvision (${winner.name})`,
+                  channels: snap.channels.map((c) => ({ ...c })),
+                  hdds: snap.hdds.map((h) => ({ ...h })),
+                  history: snap.history.map((h) => ({ ...h })),
+                });
+              }
+            }
+          }
+        }),
+        ...enabledUnifi.map(async (uCfg) => {
+          const snap = await this.unifi.collect(uCfg);
+          this.unifiSnapshots.set(uCfg.id, snap);
+        }),
       ]);
 
       // Final identity rebuild so overview carries complete canonical IDs & linkedSources
@@ -486,7 +589,217 @@ export class TelemetryManager {
     const metrics = await this.ssh.collect(cfg);
     this.sshMetrics.set(cfg.id, metrics);
     this.rebuildDeviceRegistry();
+    await this.syncSshProxmoxHost(cfg, metrics);
     this.notify();
+  }
+
+  private isLikelyProxmoxServer(cfg: SshServerConfig, metrics: SshServerMetrics): boolean {
+    if (metrics.status !== 'online') return false;
+    return (
+      /\bpve\b|-pve/i.test(metrics.kernel || '') ||
+      /proxmox/i.test(metrics.osPrettyName || '') ||
+      cfg.tags.some((t) => /proxmox|pve/i.test(t))
+    );
+  }
+
+  private hasProxmoxConfigForServer(cfg: SshServerConfig, metrics?: SshServerMetrics): boolean {
+    const sshCanonical = this.devices.getCanonicalIdFor(`ssh:${cfg.id}`);
+    const serverIps = new Set(
+      [cfg.host, metrics?.ipAddress, ...(metrics?.allIps || []), metrics?.tailscale?.ip]
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase()),
+    );
+    for (const pve of this.store.listProxmox()) {
+      if (serverIps.has(pve.host.toLowerCase())) return true;
+      const pveHostCanonical = this.devices.getCanonicalIdFor(`proxmox-host:${pve.id}`);
+      if (pveHostCanonical === sshCanonical) return true;
+      const snap = this.proxmoxSnapshots.get(pve.id);
+      if (snap) {
+        for (const n of snap.nodes) {
+          if (this.devices.getCanonicalIdFor(`proxmox:${pve.id}:${n.node}`) === sshCanonical) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private async syncSshProxmoxHost(cfg: SshServerConfig, metrics: SshServerMetrics): Promise<void> {
+    if (!this.isLikelyProxmoxServer(cfg, metrics)) {
+      this.sshProxmoxSnapshots.delete(cfg.id);
+      return;
+    }
+    if (this.hasProxmoxConfigForServer(cfg, metrics)) {
+      this.sshProxmoxSnapshots.delete(cfg.id);
+      return;
+    }
+
+    // 1. If password auth is available, try auto-linking via Proxmox API (:8006)
+    if (!this.autoProxmoxPromoted.has(cfg.id) && cfg.password) {
+      this.autoProxmoxPromoted.add(cfg.id);
+      const pamUser = cfg.username.includes('@') ? cfg.username : `${cfg.username}@pam`;
+      try {
+        const testRes = await this.proxmox.testConnection({
+          id: 'auto-pve',
+          name: cfg.name,
+          host: cfg.host,
+          port: 8006,
+          authType: 'password',
+          username: pamUser,
+          password: cfg.password,
+          tokenId: '',
+          allowInsecureTls: true,
+          enabled: true,
+          createdAt: new Date().toISOString(),
+        });
+        if (testRes.ok) {
+          const saved = this.store.upsertProxmox({
+            name: cfg.name,
+            host: cfg.host,
+            port: 8006,
+            authType: 'password',
+            username: pamUser,
+            password: cfg.password,
+            tokenId: '',
+            allowInsecureTls: true,
+            enabled: true,
+          });
+          this.sshProxmoxSnapshots.delete(cfg.id);
+          await this.pollProxmoxById(saved.id);
+          return;
+        }
+      } catch {
+        // Fall through to SSH pvesh telemetry
+      }
+    }
+
+    // 2. Collect Proxmox cluster/node/guest/storage directly over SSH via `pvesh`
+    const now = Date.now();
+    const nodeName = (metrics.hostname || cfg.name || cfg.host).split('.')[0] || 'pve';
+    const nodes: ProxmoxNodeMetrics[] = [];
+    const guests: ProxmoxGuest[] = [];
+    const storage: ProxmoxStorage[] = [];
+
+    try {
+      const cmdRes = await this.ssh.runCommand(cfg, 'pvesh get /cluster/resources --output-format json 2>/dev/null', 8000);
+      if (cmdRes.exitCode === 0 && cmdRes.stdout.trim().startsWith('[')) {
+        const items = JSON.parse(cmdRes.stdout) as Array<Record<string, any>>;
+        for (const item of items) {
+          if (item.type === 'node') {
+            const nName = String(item.node || nodeName);
+            const maxMem = Number(item.maxmem || metrics.memTotalBytes || 0);
+            const usedMem = Number(item.mem || metrics.memUsedBytes || 0);
+            const cpuFrac = Number(item.cpu || 0);
+            const maxDisk = Number(item.maxdisk || metrics.disks[0]?.totalBytes || 0);
+            const usedDisk = Number(item.disk || metrics.disks[0]?.usedBytes || 0);
+            nodes.push({
+              node: nName,
+              status: item.status === 'online' ? 'online' : 'offline',
+              cpuPercent: Math.round((cpuFrac > 0 ? cpuFrac * 100 : metrics.cpuPercent) * 10) / 10,
+              maxCpu: Number(item.maxcpu || metrics.cpuCores || 1),
+              cpuModel: metrics.cpuModel || '',
+              memUsedBytes: usedMem,
+              memTotalBytes: maxMem,
+              memPercent: maxMem > 0 ? Math.round((usedMem / maxMem) * 1000) / 10 : metrics.memPercent,
+              swapUsedBytes: metrics.swapUsedBytes || 0,
+              swapTotalBytes: metrics.swapTotalBytes || 0,
+              rootfsUsedBytes: usedDisk,
+              rootfsTotalBytes: maxDisk,
+              rootfsPercent: maxDisk > 0 ? Math.round((usedDisk / maxDisk) * 1000) / 10 : 0,
+              uptimeSeconds: Number(item.uptime || metrics.uptimeSeconds || 0),
+              pveVersion: metrics.osPrettyName || 'Proxmox VE (SSH)',
+              kernelVersion: metrics.kernel || '',
+              loadAvg: metrics.loadAvg || [0, 0, 0],
+              ipAddress: metrics.ipAddress || cfg.host,
+              canonicalDeviceId: this.devices.getCanonicalIdFor(`ssh:${cfg.id}`),
+              history: metrics.history || [],
+            });
+          } else if (item.type === 'qemu' || item.type === 'lxc') {
+            const maxMem = Number(item.maxmem || 0);
+            const usedMem = Number(item.mem || 0);
+            guests.push({
+              vmid: Number(item.vmid || 0),
+              name: String(item.name || `${item.type}-${item.vmid}`),
+              node: String(item.node || nodeName),
+              type: item.type,
+              status: item.status === 'running' ? 'running' : item.status === 'paused' ? 'paused' : 'stopped',
+              cpuPercent: Math.round(Number(item.cpu || 0) * 1000) / 10,
+              cpus: Number(item.maxcpu || 1),
+              memUsedBytes: usedMem,
+              memMaxBytes: maxMem,
+              memPercent: maxMem > 0 ? Math.round((usedMem / maxMem) * 1000) / 10 : 0,
+              diskUsedBytes: Number(item.disk || 0),
+              diskMaxBytes: Number(item.maxdisk || 0),
+              uptimeSeconds: Number(item.uptime || 0),
+              netInBytes: Number(item.netin || 0),
+              netOutBytes: Number(item.netout || 0),
+              template: Boolean(item.template),
+              tags: item.tags ? String(item.tags).split(';').filter(Boolean) : [],
+            });
+          } else if (item.type === 'storage') {
+            const total = Number(item.maxdisk || 0);
+            const used = Number(item.disk || 0);
+            storage.push({
+              storage: String(item.storage || 'local'),
+              node: String(item.node || nodeName),
+              type: String(item.plugintype || 'dir'),
+              content: String(item.content || ''),
+              active: item.status === 'available',
+              enabled: true,
+              shared: Boolean(item.shared),
+              usedBytes: used,
+              totalBytes: total,
+              availBytes: Math.max(0, total - used),
+              usedPercent: total > 0 ? Math.round((used / total) * 1000) / 10 : 0,
+            });
+          }
+        }
+      }
+    } catch {
+      // Fallback to single-node SSH summary below
+    }
+
+    if (nodes.length === 0) {
+      const rootTotal = metrics.disks[0]?.totalBytes || 0;
+      const rootUsed = metrics.disks[0]?.usedBytes || 0;
+      nodes.push({
+        node: nodeName,
+        status: 'online',
+        cpuPercent: metrics.cpuPercent,
+        maxCpu: metrics.cpuCores || 1,
+        cpuModel: metrics.cpuModel || '',
+        memUsedBytes: metrics.memUsedBytes,
+        memTotalBytes: metrics.memTotalBytes,
+        memPercent: metrics.memPercent,
+        swapUsedBytes: metrics.swapUsedBytes || 0,
+        swapTotalBytes: metrics.swapTotalBytes || 0,
+        rootfsUsedBytes: rootUsed,
+        rootfsTotalBytes: rootTotal,
+        rootfsPercent: rootTotal > 0 ? Math.round((rootUsed / rootTotal) * 1000) / 10 : 0,
+        uptimeSeconds: metrics.uptimeSeconds,
+        pveVersion: metrics.osPrettyName || 'Proxmox VE (SSH)',
+        kernelVersion: metrics.kernel || '',
+        loadAvg: metrics.loadAvg || [0, 0, 0],
+        ipAddress: metrics.ipAddress || cfg.host,
+        canonicalDeviceId: this.devices.getCanonicalIdFor(`ssh:${cfg.id}`),
+        history: metrics.history || [],
+      });
+    }
+
+    this.sshProxmoxSnapshots.set(cfg.id, {
+      configId: `ssh-pve:${cfg.id}`,
+      name: `${cfg.name} (via SSH)`,
+      host: cfg.host,
+      status: 'online',
+      collectedAt: now,
+      clusterName: cfg.name,
+      quorate: true,
+      nodes,
+      guests,
+      storage,
+      tasks: [],
+    });
   }
 
   async pollProxmoxById(id: string): Promise<void> {
@@ -521,6 +834,8 @@ export class TelemetryManager {
   removeServerState(id: string): void {
     this.ssh.disconnect(id);
     this.sshMetrics.delete(id);
+    this.sshProxmoxSnapshots.delete(id);
+    this.autoProxmoxPromoted.delete(id);
     this.devices.remove(`ssh:${id}`);
     this.rebuildDeviceRegistry();
     this.notify();
@@ -570,6 +885,60 @@ export class TelemetryManager {
     this.devices.remove(`opnsense:${id}`);
     this.rebuildDeviceRegistry();
     this.notify();
+  }
+
+  async pollHikvisionById(id: string): Promise<HikvisionSnapshot | null> {
+    const cfg = this.store.getHikvision(id);
+    if (!cfg || !cfg.enabled) return null;
+    const snap = await this.hikvision.collect(cfg);
+    this.hikvisionSnapshots.set(cfg.id, snap);
+    this.rebuildDeviceRegistry();
+    this.notify();
+    return snap;
+  }
+
+  removeHikvisionState(id: string): void {
+    this.hikvisionSnapshots.delete(id);
+    this.devices.remove(`hikvision:${id}`);
+    this.rebuildDeviceRegistry();
+    this.notify();
+  }
+
+  async pollUnifiById(id: string): Promise<UnifiSnapshot | null> {
+    const cfg = this.store.getUnifi(id);
+    if (!cfg || !cfg.enabled) return null;
+    const snap = await this.unifi.collect(cfg);
+    this.unifiSnapshots.set(cfg.id, snap);
+    this.rebuildDeviceRegistry();
+    this.notify();
+    return snap;
+  }
+
+  removeUnifiState(id: string): void {
+    this.unifiSnapshots.delete(id);
+    this.devices.remove(`unifi:${id}`);
+    this.rebuildDeviceRegistry();
+    this.notify();
+  }
+
+  resetAllSnapshots(): void {
+    this.ssh.disconnectAll();
+    this.sshMetrics.clear();
+    this.proxmoxSnapshots.clear();
+    this.sshProxmoxSnapshots.clear();
+    this.autoProxmoxPromoted.clear();
+    this.tailscaleSnapshots.clear();
+    this.opnsenseSnapshots.clear();
+    this.hikvisionSnapshots.clear();
+    this.unifiSnapshots.clear();
+    this.tailscaleLastPoll.clear();
+    this.preferredSshPrimary.clear();
+    this.preferredProxmoxPrimary.clear();
+    this.preferredTailscalePrimary.clear();
+    this.preferredOpnsensePrimary.clear();
+    this.rebuildDeviceRegistry();
+    this.notify();
+    void this.pollNow(true);
   }
 
   async executeOpnsenseServiceAction(
@@ -629,6 +998,21 @@ export class TelemetryManager {
       const res = this.demo.executeDemoGuestAction(node, type, vmid, action);
       this.notify();
       return res;
+    }
+    if (configId.startsWith('ssh-pve:')) {
+      const serverId = configId.slice('ssh-pve:'.length);
+      const srv = this.store.getServer(serverId);
+      if (!srv) throw new Error('SSH Proxmox host not found');
+      const bin = type === 'qemu' ? 'qm' : 'pct';
+      const cmd = `${bin} ${action} ${Number(vmid)}`;
+      const out = await this.ssh.runCommand(srv, cmd, 20000);
+      if (out.exitCode !== 0) {
+        throw new Error(out.stderr || out.stdout || `${cmd} failed with exit code ${out.exitCode}`);
+      }
+      setTimeout(() => {
+        void this.pollServerById(serverId);
+      }, 1500);
+      return { upid: `ssh:${serverId}:${bin}:${action}:${vmid}` };
     }
     const cfg = this.store.getProxmox(configId);
     if (!cfg) throw new Error('Proxmox connection not found');
@@ -720,6 +1104,13 @@ export class TelemetryManager {
       };
     });
 
+    for (const [serverId, sshSnap] of this.sshProxmoxSnapshots.entries()) {
+      const srv = this.store.getServer(serverId);
+      if (!srv || !srv.enabled) continue;
+      if (this.hasProxmoxConfigForServer(srv, this.sshMetrics.get(serverId))) continue;
+      realProxmox.push(sshSnap);
+    }
+
     const realTailscale: TailscaleSnapshot[] = this.store.listTailscale().map((cfg) => {
       const snap = this.tailscaleSnapshots.get(cfg.id);
       if (!snap) {
@@ -792,6 +1183,44 @@ export class TelemetryManager {
         : snap;
     });
 
+    const realHikvision: HikvisionSnapshot[] = this.store.listHikvision().map((cfg) => {
+      const devInfo = this.devices.getByEntity(`hikvision:${cfg.id}`);
+      const snap: HikvisionSnapshot = this.hikvisionSnapshots.get(cfg.id) ?? {
+        configId: cfg.id,
+        name: cfg.name,
+        host: cfg.host,
+        status: cfg.enabled ? 'connecting' : 'offline',
+        collectedAt: now,
+        deviceName: cfg.name,
+        deviceType: cfg.deviceKind === 'dvr' ? 'DVR' : cfg.deviceKind === 'camera' ? 'IPCamera' : 'NVR',
+        model: '-',
+        serialNumber: '-',
+        firmwareVersion: '-',
+        firmwareBuild: '-',
+        macAddress: '-',
+        uptimeSeconds: 0,
+        cpuPercent: 0,
+        memPercent: 0,
+        totalChannels: 0,
+        onlineChannels: 0,
+        recordingChannels: 0,
+        storageTotalBytes: 0,
+        storageUsedBytes: 0,
+        storageFreeBytes: 0,
+        storagePercent: 0,
+        channels: [],
+        hdds: [],
+        history: [],
+      };
+      return devInfo
+        ? {
+            ...snap,
+            canonicalDeviceId: devInfo.canonicalId,
+            linkedSources: devInfo.linkedSources,
+          }
+        : snap;
+    });
+
     const servers = settings.demoMode ? [...realServers, ...this.demo.getServerSnapshots()] : realServers;
     const proxmox = settings.demoMode ? [...realProxmox, this.demo.getProxmoxSnapshot()] : realProxmox;
     const tailscale =
@@ -802,6 +1231,41 @@ export class TelemetryManager {
       settings.demoMode && realOpnsense.length === 0
         ? [this.demo.getOpnsenseSnapshot()]
         : realOpnsense;
+    const hikvision =
+      settings.demoMode && realHikvision.length === 0
+        ? [this.demo.getHikvisionSnapshot()]
+        : realHikvision;
+
+    const enabledUnifi = this.store.listUnifi().filter((u) => u.enabled);
+    const unifi: UnifiSnapshot[] = enabledUnifi.map((u) => {
+      return (
+        this.unifiSnapshots.get(u.id) ?? {
+          configId: u.id,
+          name: u.name,
+          host: u.host,
+          controllerType: u.controllerType,
+          site: u.site || 'default',
+          status: 'connecting',
+          collectedAt: now,
+          controllerVersion: '-',
+          totalDevices: 0,
+          onlineDevices: 0,
+          totalClients: 0,
+          wiredClients: 0,
+          wirelessClients: 0,
+          guestClients: 0,
+          wanIp: '',
+          ispName: '',
+          wanLatencyMs: null,
+          wanRxBps: 0,
+          wanTxBps: 0,
+          devices: [],
+          clients: [],
+          wlans: [],
+          history: [],
+        }
+      );
+    });
 
     const alerts: AlertItem[] = [];
     const seenAlertKeys = new Set<string>();
@@ -1032,12 +1496,73 @@ export class TelemetryManager {
       }
     }
 
+    let hikvisionOnline = 0;
+    const hikvisionTotal = hikvision.length;
+    let hikvisionCamerasOnline = 0;
+    let hikvisionCamerasTotal = 0;
+    const seenHikDevices = new Set<string>();
+
+    for (const hik of hikvision) {
+      const devKey = hik.canonicalDeviceId || `hikvision:${hik.configId}`;
+      if (hik.status === 'online') {
+        hikvisionOnline++;
+        const firstForDevice = !seenHikDevices.has(devKey);
+        seenHikDevices.add(devKey);
+        if (firstForDevice) {
+          hikvisionCamerasOnline += hik.onlineChannels;
+          hikvisionCamerasTotal += hik.totalChannels;
+
+          for (const hdd of hik.hdds) {
+            if (hdd.status === 'error') {
+              pushAlertOnce(`hik-hdd:${devKey}:${hdd.id}`, {
+                id: `hik-hdd-${hik.configId}-${hdd.id}`,
+                severity: 'critical',
+                source: `${hik.name}/${hdd.name}`,
+                message: `NVR SATA bay ${hdd.name} reported status: ${hdd.statusText}`,
+                timestamp: now,
+              });
+            }
+          }
+          for (const ch of hik.channels) {
+            if (!ch.online) {
+              pushAlertOnce(`hik-ch:${devKey}:${ch.id}`, {
+                id: `hik-ch-${hik.configId}-${ch.id}`,
+                severity: 'warning',
+                source: `${hik.name}/CH${ch.id}`,
+                message: `Camera "${ch.name}" (CH${ch.id}) is offline`,
+                timestamp: now,
+              });
+            }
+          }
+        }
+      } else if (hik.status === 'error') {
+        pushAlertOnce(`hik-err:${hik.configId}`, {
+          id: `hik-err-${hik.configId}`,
+          severity: 'critical',
+          source: hik.name,
+          message: hik.errorMessage || 'Hikvision ISAPI unreachable',
+          timestamp: now,
+        });
+      }
+    }
+
     const allCanonicalDevices = this.devices.getAllDevices();
     let deduplicatedSources = 0;
     for (const dev of allCanonicalDevices) {
       if (dev.entityKeys.length > 1) {
         deduplicatedSources += dev.entityKeys.length - 1;
       }
+    }
+
+    let unifiOnline = 0;
+    let unifiDevicesOnline = 0;
+    let unifiDevicesTotal = 0;
+    let unifiClientsTotal = 0;
+    for (const u of unifi) {
+      if (u.status === 'online') unifiOnline++;
+      unifiDevicesOnline += u.onlineDevices;
+      unifiDevicesTotal += u.totalDevices;
+      unifiClientsTotal += u.totalClients;
     }
 
     return {
@@ -1047,6 +1572,8 @@ export class TelemetryManager {
       proxmox,
       tailscale,
       opnsense,
+      hikvision,
+      unifi,
       summary: {
         totalServers: servers.length,
         onlineServers,
@@ -1062,6 +1589,15 @@ export class TelemetryManager {
         opnsenseTotal,
         opnsenseGatewaysOnline,
         opnsenseGatewaysTotal,
+        hikvisionOnline,
+        hikvisionTotal,
+        hikvisionCamerasOnline,
+        hikvisionCamerasTotal,
+        unifiOnline,
+        unifiTotal: unifi.length,
+        unifiDevicesOnline,
+        unifiDevicesTotal,
+        unifiClientsTotal,
         avgCpuPercent: cpuCount > 0 ? Math.round((cpuSum / cpuCount) * 10) / 10 : 0,
         totalMemUsedBytes,
         totalMemBytes,

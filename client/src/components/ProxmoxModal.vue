@@ -4,6 +4,7 @@
     :title="isEdit ? 'Edit Proxmox VE Host' : 'Connect Proxmox VE'"
     @close="$emit('close')"
   >
+    <DeviceAutoScan v-if="!isEdit" kind="proxmox" :open="open" @select="applyScanned" />
     <div class="rack-row">
           <div class="col-12">
             <div class="field">
@@ -108,10 +109,11 @@ import type { ConnectionTestResult, ProxmoxAuthType, ProxmoxConfigPublic } from 
 import { api } from '@/api/client';
 import UiDialog from '@/components/ui/UiDialog.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import DeviceAutoScan, { type ScannedDevicePick } from '@/components/DeviceAutoScan.vue';
 
 export default defineComponent({
   name: 'ProxmoxModal',
-  components: { UiDialog, UiButton },
+  components: { UiDialog, UiButton, DeviceAutoScan },
   props: {
     open: { type: Boolean, default: false },
     initialConfig: { type: Object as () => ProxmoxConfigPublic | null, default: null },
@@ -231,6 +233,12 @@ export default defineComponent({
       }
     }
 
+    function applyScanned(d: ScannedDevicePick) {
+      form.host = d.host;
+      form.port = d.port || 8006;
+      if (!form.name.trim()) form.name = d.name;
+    }
+
     return {
       form,
       isEdit,
@@ -238,6 +246,7 @@ export default defineComponent({
       saving,
       testResult,
       errorMsg,
+      applyScanned,
       handleTest,
       handleSave,
     };

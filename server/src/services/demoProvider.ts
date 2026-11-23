@@ -1,6 +1,7 @@
 import type {
   CommandResult,
   GuestPowerAction,
+  HikvisionSnapshot,
   OpnsenseService,
   OpnsenseServiceAction,
   OpnsenseSnapshot,
@@ -27,6 +28,7 @@ export class DemoProvider {
   private serverHistories = new Map<string, TelemetryPoint[]>();
   private pveNodeHistories = new Map<string, TelemetryPoint[]>();
   private opnsenseHistory: TelemetryPoint[] = [];
+  private hikvisionHistory: TelemetryPoint[] = [];
   private demoOpnServices: OpnsenseService[] = [
     { id: 'unbound', name: 'unbound', description: 'Unbound DNS Resolver', running: true },
     { id: 'kea-dhcp4', name: 'kea-dhcp4', description: 'Kea DHCPv4 Server', running: true },
@@ -1110,5 +1112,176 @@ export class DemoProvider {
     if (action === 'start' || action === 'restart') svc.running = true;
     if (action === 'stop') svc.running = false;
     return { ok: true, message: `[Demo] ${svc.description}: ${action} succeeded` };
+  }
+
+  getHikvisionSnapshot(): HikvisionSnapshot {
+    const now = Date.now();
+    const elapsedSec = Math.floor((now - this.startedAt) / 1000);
+    const cpuPercent = Math.round((18.5 + Math.sin(this.tick * 0.28) * 4.2) * 10) / 10;
+    const memPercent = 41.8;
+
+    const point: TelemetryPoint = {
+      timestamp: now,
+      cpuPercent,
+      memPercent,
+      netRxBps: 5_420_000,
+      netTxBps: 980_000,
+    };
+    this.hikvisionHistory = [...this.hikvisionHistory.slice(-49), point];
+
+    const hddCap = 8 * TB;
+    const hdds = [
+      {
+        id: 1,
+        name: 'HDD 1 (SATA-1)',
+        type: 'SATA',
+        status: 'ok' as const,
+        statusText: 'OK',
+        capacityBytes: hddCap,
+        freeBytes: Math.round(1.12 * TB),
+        usedBytes: Math.round(6.88 * TB),
+        usedPercent: 86.0,
+        property: 'RW',
+      },
+      {
+        id: 2,
+        name: 'HDD 2 (SATA-2)',
+        type: 'SATA',
+        status: 'ok' as const,
+        statusText: 'OK',
+        capacityBytes: hddCap,
+        freeBytes: Math.round(1.64 * TB),
+        usedBytes: Math.round(6.36 * TB),
+        usedPercent: 79.5,
+        property: 'RW',
+      },
+      {
+        id: 3,
+        name: 'HDD 3 (SATA-3)',
+        type: 'SATA',
+        status: 'ok' as const,
+        statusText: 'OK',
+        capacityBytes: hddCap,
+        freeBytes: Math.round(2.96 * TB),
+        usedBytes: Math.round(5.04 * TB),
+        usedPercent: 63.0,
+        property: 'RW',
+      },
+      {
+        id: 4,
+        name: 'HDD 4 (SATA-4)',
+        type: 'SATA',
+        status: 'sleeping' as const,
+        statusText: 'SLEEPING',
+        capacityBytes: hddCap,
+        freeBytes: Math.round(7.4 * TB),
+        usedBytes: Math.round(0.6 * TB),
+        usedPercent: 7.5,
+        property: 'RW',
+      },
+    ];
+
+    const storageTotalBytes = hdds.reduce((a, h) => a + h.capacityBytes, 0);
+    const storageFreeBytes = hdds.reduce((a, h) => a + h.freeBytes, 0);
+    const storageUsedBytes = storageTotalBytes - storageFreeBytes;
+
+    const channels = [
+      { id: 1, name: 'Front Driveway 4K', res: '3840x2160', fps: 25, kbps: 8192, poe: 1, ptz: false, online: true },
+      { id: 2, name: 'Main Entrance Porch', res: '2688x1520', fps: 25, kbps: 6144, poe: 2, ptz: false, online: true },
+      { id: 3, name: 'Server Rack Room', res: '2560x1440', fps: 30, kbps: 4096, poe: 3, ptz: false, online: true },
+      { id: 4, name: 'Rear Garden PTZ', res: '3840x2160', fps: 25, kbps: 8192, poe: 4, ptz: true, online: true },
+      { id: 5, name: 'Side Gate North', res: '2688x1520', fps: 25, kbps: 5120, poe: 5, ptz: false, online: true },
+      { id: 6, name: 'Garage Interior', res: '1920x1080', fps: 25, kbps: 3072, poe: 6, ptz: false, online: true },
+      { id: 7, name: 'Perimeter East Wall', res: '2688x1520', fps: 25, kbps: 5120, poe: 7, ptz: false, online: true },
+      { id: 8, name: 'Workshop Bay', res: '1920x1080', fps: 25, kbps: 2048, poe: 8, ptz: false, online: false },
+    ].map((c) => ({
+      id: c.id,
+      name: c.name,
+      sourceType: 'ip' as const,
+      online: c.online,
+      recording: c.online,
+      ipAddress: `192.168.254.${c.id + 1}`,
+      model: c.ptz ? 'DS-2DE4A425IWG-E' : 'DS-2CD2387G2-LU',
+      protocol: 'HIKVISION',
+      poePort: c.poe,
+      mainStreamId: c.id * 100 + 1,
+      subStreamId: c.id * 100 + 2,
+      codec: 'H.265',
+      resolution: c.res,
+      fps: c.fps,
+      bitrateKbps: c.kbps,
+      ptzSupported: c.ptz,
+    }));
+
+    return {
+      configId: 'demo-hikvision-nvr',
+      name: 'NVR-CCTV-01',
+      host: '192.168.0.64',
+      status: 'online',
+      collectedAt: now,
+      deviceName: 'DS-7732NI-I4/16P',
+      deviceType: 'NVR',
+      model: 'DS-7732NI-I4 / 16P(B)',
+      serialNumber: 'DS-7732NI-I4 / 16P(B)1620200309CCRRE20951682WCVU',
+      firmwareVersion: 'V4.61.025',
+      firmwareBuild: 'build 220905',
+      macAddress: 'c0:56:e3:9a:41:12',
+      uptimeSeconds: 3_624_900 + elapsedSec,
+      cpuPercent,
+      memPercent,
+      totalChannels: channels.length,
+      onlineChannels: channels.filter((c) => c.online).length,
+      recordingChannels: channels.filter((c) => c.recording).length,
+      storageTotalBytes,
+      storageUsedBytes,
+      storageFreeBytes,
+      storagePercent: Math.round((storageUsedBytes / storageTotalBytes) * 1000) / 10,
+      channels,
+      hdds,
+      history: this.hikvisionHistory,
+      isDemo: true,
+    };
+  }
+
+  renderDemoCameraSvg(channelId: number): Buffer {
+    const snap = this.getHikvisionSnapshot();
+    const ch = snap.channels.find((c) => c.id === channelId) || snap.channels[0];
+    const now = new Date();
+    const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const scanY = (now.getTime() / 22) % 360;
+    const hue = (channelId * 47) % 360;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#09111f"/>
+          <stop offset="50%" stop-color="hsl(${hue}, 38%, 12%)"/>
+          <stop offset="100%" stop-color="#05080f"/>
+        </linearGradient>
+      </defs>
+      <rect width="640" height="360" fill="url(#bg)"/>
+      <g stroke="rgba(34,211,238,0.11)" stroke-width="1">
+        <line x1="0" y1="90" x2="640" y2="90"/>
+        <line x1="0" y1="180" x2="640" y2="180"/>
+        <line x1="0" y1="270" x2="640" y2="270"/>
+        <line x1="160" y1="0" x2="160" y2="360"/>
+        <line x1="320" y1="0" x2="320" y2="360"/>
+        <line x1="480" y1="0" x2="480" y2="360"/>
+      </g>
+      <rect x="0" y="${scanY.toFixed(1)}" width="640" height="3" fill="rgba(34,211,238,0.22)"/>
+      <circle cx="320" cy="180" r="56" fill="none" stroke="rgba(34,211,238,0.22)" stroke-width="1.5"/>
+      <line x1="295" y1="180" x2="345" y2="180" stroke="rgba(34,211,238,0.35)" stroke-width="1.5"/>
+      <line x1="320" y1="155" x2="320" y2="205" stroke="rgba(34,211,238,0.35)" stroke-width="1.5"/>
+      <rect x="14" y="12" width="250" height="28" rx="3" fill="rgba(5,8,15,0.72)"/>
+      <circle cx="28" cy="26" r="5" fill="${ch.online ? '#ef4444' : '#64748b'}"/>
+      <text x="40" y="31" fill="#f8fafc" font-family="monospace" font-size="13" font-weight="bold">CH${pad(ch.id)} · ${ch.name}</text>
+      <rect x="424" y="12" width="202" height="28" rx="3" fill="rgba(5,8,15,0.72)"/>
+      <text x="434" y="30" fill="#22d3ee" font-family="monospace" font-size="12" font-weight="bold">${ts}</text>
+      <text x="320" y="185" text-anchor="middle" fill="rgba(226,232,240,0.45)" font-family="monospace" font-size="13" font-weight="bold">DEMO ISAPI FEED · ${ch.model}</text>
+      <rect x="14" y="320" width="612" height="26" rx="3" fill="rgba(5,8,15,0.72)"/>
+      <text x="24" y="337" fill="#94a3b8" font-family="monospace" font-size="11">${ch.codec} · ${ch.resolution} @ ${ch.fps}fps · ${ch.bitrateKbps} kbps · ${ch.ipAddress}${ch.poePort ? ` (PoE #${ch.poePort})` : ''}</text>
+    </svg>`;
+    return Buffer.from(svg, 'utf8');
   }
 }

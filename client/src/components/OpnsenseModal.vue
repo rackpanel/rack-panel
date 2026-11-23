@@ -4,6 +4,7 @@
     :title="isEdit ? 'Edit OPNsense Firewall' : 'Connect OPNsense Firewall'"
     @close="$emit('close')"
   >
+    <DeviceAutoScan v-if="!isEdit" kind="opnsense" :open="open" @select="applyScanned" />
     <div class="rack-row">
       <div class="col-12">
         <div class="field">
@@ -33,6 +34,28 @@
         <div class="field">
           <label class="field-label">Port</label>
           <input v-model.number="form.port" class="input font-mono" type="number" placeholder="443" />
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="opn-import-box">
+          <div class="opn-import-info">
+            <div style="font-size: 13px; font-weight: 600; color: #e2e8f0;">
+              Import OPNsense API Key File
+            </div>
+            <div class="opn-import-sub mono">
+              {{ importedFileName ? 'Loaded: ' + importedFileName : 'e.g. OPNsense.gitcloud.local_apikey.txt (or enter manually below)' }}
+            </div>
+          </div>
+          <label class="btn btn-sm btn-primary opn-import-btn">
+            Import Key File
+            <input
+              type="file"
+              accept=".txt,.key,.json,text/plain"
+              style="display: none;"
+              @change="handleKeyFileUpload"
+            />
+          </label>
         </div>
       </div>
 
@@ -98,10 +121,11 @@ import type { ConnectionTestResult, OpnsenseConfigPublic } from '@shared/types';
 import { api } from '@/api/client';
 import UiDialog from '@/components/ui/UiDialog.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import DeviceAutoScan, { type ScannedDevicePick } from '@/components/DeviceAutoScan.vue';
 
 export default defineComponent({
   name: 'OpnsenseModal',
-  components: { UiDialog, UiButton },
+  components: { UiDialog, UiButton, DeviceAutoScan },
   props: {
     open: { type: Boolean, default: false },
     initialConfig: { type: Object as () => OpnsenseConfigPublic | null, default: null },
@@ -122,6 +146,7 @@ export default defineComponent({
     const saving = ref(false);
     const testResult = ref<ConnectionTestResult | null>(null);
     const errorMsg = ref('');
+    const importedFileName = ref('');
 
     const isEdit = computed(() => Boolean(props.initialConfig && props.initialConfig.id));
 
@@ -131,6 +156,7 @@ export default defineComponent({
         if (!val) return;
         testResult.value = null;
         errorMsg.value = '';
+        importedFileName.value = '';
         if (props.initialConfig) {
           form.id = props.initialConfig.id;
           form.name = props.initialConfig.name;
@@ -218,6 +244,75 @@ export default defineComponent({
       }
     }
 
+    function applyScanned(d: ScannedDevicePick) {
+      form.host = d.host;
+      form.port = d.port || 443;
+      form.protocol = d.protocol === 'http' ? 'http' : 'https';
+      if (!form.name.trim()) form.name = d.name;
+    }
+
+    function handleKeyFileUpload(evt: Event) {
+      errorMsg.value = '';
+      const input = evt.target as HTMLInputElement | null;
+      const file = input && input.files ? input.files[0] : null;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        let parsedKey = '';
+        let parsedSecret = '';
+
+        const trimmed = text.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const obj = JSON.parse(trimmed) as Record<string, unknown>;
+            parsedKey = String(obj.key || obj.apiKey || '').trim();
+            parsedSecret = String(obj.secret || obj.apiSecret || '').trim();
+          } catch {
+            // fall through to line parser
+          }
+        }
+
+        if (!parsedKey || !parsedSecret) {
+          const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            const keyMatch = line.match(/^(?:key|api[_-]?key)\s*[:=]\s*(.+)$/i);
+            if (keyMatch) {
+              parsedKey = keyMatch[1].trim();
+              continue;
+            }
+            const secMatch = line.match(/^(?:secret|api[_-]?secret)\s*[:=]\s*(.+)$/i);
+            if (secMatch) {
+              parsedSecret = secMatch[1].trim();
+            }
+          }
+          if ((!parsedKey || !parsedSecret) && lines.length >= 2) {
+            parsedKey = parsedKey || lines[0];
+            parsedSecret = parsedSecret || lines[1];
+          }
+        }
+
+        if (!parsedKey || !parsedSecret) {
+          errorMsg.value = `Could not parse key and secret from "${file.name}". Please enter them manually below.`;
+          return;
+        }
+
+        form.apiKey = parsedKey;
+        form.apiSecret = parsedSecret;
+        importedFileName.value = file.name;
+
+        const hostMatch = file.name.match(/^OPNsense\.(.+?)_apikey\.txt$/i);
+        if (hostMatch && hostMatch[1]) {
+          const inferredHost = hostMatch[1].trim();
+          if (!form.host.trim()) form.host = inferredHost;
+          if (!form.name.trim()) form.name = `OPNsense (${inferredHost})`;
+        }
+      };
+      reader.readAsText(file);
+      if (input) input.value = '';
+    }
+
     return {
       form,
       isEdit,
@@ -225,6 +320,9 @@ export default defineComponent({
       saving,
       testResult,
       errorMsg,
+      importedFileName,
+      handleKeyFileUpload,
+      applyScanned,
       onProtocolChange,
       handleTest,
       handleSave,
@@ -278,5 +376,33 @@ export default defineComponent({
   background: rgba(220, 38, 38, 0.16);
   border: 1px solid rgba(248, 113, 113, 0.45);
   color: #fecaca;
+}
+
+.opn-import-box {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  background: #0b1019;
+  border: 1px dashed #2b3b5a;
+}
+
+.opn-import-info {
+  margin-right: 10px;
+}
+
+.opn-import-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.opn-import-btn {
+  cursor: pointer;
+  margin-top: 4px;
 }
 </style>

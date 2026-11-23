@@ -18,6 +18,12 @@
         <button class="btn" type="button" @click="$emit('add-opnsense')">
           + OPNsense
         </button>
+        <button class="btn" type="button" @click="$emit('add-hikvision')">
+          + Hikvision
+        </button>
+        <button class="btn" type="button" @click="$emit('add-unifi')">
+          + UniFi
+        </button>
         <button class="btn" type="button" @click="$emit('add-tailscale')">
           + Tailscale
         </button>
@@ -95,10 +101,28 @@
                 v-if="summary.opnsenseGatewaysTotal > 0"
                 class="pill"
                 :class="summary.opnsenseGatewaysOnline === summary.opnsenseGatewaysTotal ? 'pill-ok' : 'pill-crit'"
-                style="margin-bottom: 4px; cursor: pointer;"
+                style="margin-right: 6px; margin-bottom: 4px; cursor: pointer;"
                 @click="$emit('navigate', 'opnsense')"
               >
                 GW {{ summary.opnsenseGatewaysOnline }}/{{ summary.opnsenseGatewaysTotal }}
+              </span>
+              <span
+                v-if="summary.hikvisionCamerasTotal > 0"
+                class="pill"
+                :class="summary.hikvisionCamerasOnline === summary.hikvisionCamerasTotal ? 'pill-cyan' : 'pill-warn'"
+                style="margin-right: 6px; margin-bottom: 4px; cursor: pointer;"
+                @click="$emit('navigate', 'hikvision')"
+              >
+                CAM {{ summary.hikvisionCamerasOnline }}/{{ summary.hikvisionCamerasTotal }}
+              </span>
+              <span
+                v-if="(summary.unifiDevicesTotal || 0) > 0"
+                class="pill"
+                :class="summary.unifiDevicesOnline === summary.unifiDevicesTotal ? 'pill-cyan' : 'pill-warn'"
+                style="margin-bottom: 4px; cursor: pointer;"
+                @click="$emit('navigate', 'unifi')"
+              >
+                UNIFI {{ summary.unifiDevicesOnline || 0 }}/{{ summary.unifiDevicesTotal || 0 }}
               </span>
             </div>
           </div>

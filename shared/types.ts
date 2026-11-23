@@ -67,7 +67,7 @@ export interface TelemetryPoint {
   netTxBps: number;
 }
 
-export type DeviceSourceKind = 'ssh' | 'proxmox' | 'tailscale' | 'opnsense';
+export type DeviceSourceKind = 'ssh' | 'proxmox' | 'tailscale' | 'opnsense' | 'hikvision' | 'unifi';
 
 export interface SshServerMetrics {
   serverId: string;
@@ -425,6 +425,223 @@ export interface OpnsenseSnapshot {
 
 export type OpnsenseServiceAction = 'start' | 'stop' | 'restart';
 
+export type HikvisionDeviceKind = 'auto' | 'nvr' | 'dvr' | 'camera';
+
+export interface HikvisionConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: 'http' | 'https';
+  rtspPort: number;
+  username: string;
+  password?: string;
+  deviceKind: HikvisionDeviceKind;
+  allowInsecureTls: boolean;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface HikvisionConfigPublic extends Omit<HikvisionConfig, 'password'> {
+  hasPassword: boolean;
+  isDemo?: boolean;
+}
+
+export interface HikvisionChannel {
+  id: number;
+  name: string;
+  sourceType: 'ip' | 'analog' | 'local';
+  online: boolean;
+  recording: boolean;
+  ipAddress: string;
+  model: string;
+  protocol: string;
+  poePort: number | null;
+  mainStreamId: number;
+  subStreamId: number;
+  codec: string;
+  resolution: string;
+  fps: number;
+  bitrateKbps: number;
+  ptzSupported: boolean;
+}
+
+export interface HikvisionHdd {
+  id: number;
+  name: string;
+  type: string;
+  status: 'ok' | 'sleeping' | 'error' | 'unformatted' | 'unknown';
+  statusText: string;
+  capacityBytes: number;
+  freeBytes: number;
+  usedBytes: number;
+  usedPercent: number;
+  property: string;
+}
+
+export interface HikvisionSnapshot {
+  configId: string;
+  name: string;
+  host: string;
+  status: 'online' | 'offline' | 'connecting' | 'error';
+  errorMessage?: string;
+  collectedAt: number;
+  deviceName: string;
+  deviceType: 'NVR' | 'DVR' | 'IPCamera';
+  model: string;
+  serialNumber: string;
+  firmwareVersion: string;
+  firmwareBuild: string;
+  macAddress: string;
+  uptimeSeconds: number;
+  cpuPercent: number;
+  memPercent: number;
+  totalChannels: number;
+  onlineChannels: number;
+  recordingChannels: number;
+  storageTotalBytes: number;
+  storageUsedBytes: number;
+  storageFreeBytes: number;
+  storagePercent: number;
+  channels: HikvisionChannel[];
+  hdds: HikvisionHdd[];
+  history: TelemetryPoint[];
+  canonicalDeviceId?: string;
+  linkedSources?: DeviceSourceKind[];
+  deduplicatedFrom?: string;
+  isDemo?: boolean;
+}
+
+export type UnifiControllerType = 'auto' | 'unifi-os' | 'classic' | 'standalone';
+
+export interface UnifiConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  controllerType: UnifiControllerType;
+  site: string;
+  username?: string;
+  password?: string;
+  apiKey?: string;
+  allowInsecureTls: boolean;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface UnifiConfigPublic extends Omit<UnifiConfig, 'password' | 'apiKey'> {
+  hasPassword: boolean;
+  hasApiKey: boolean;
+  isDemo?: boolean;
+}
+
+export interface UnifiDevicePort {
+  portIdx: number;
+  name: string;
+  up: boolean;
+  speedMbps: number;
+  fullDuplex: boolean;
+  poeEnable: boolean;
+  poeWatts: number;
+  media: string;
+}
+
+export interface UnifiDeviceRadio {
+  name: string;
+  radio: string;
+  channel: number;
+  txPower: number;
+  satisfaction: number | null;
+  numClients: number;
+}
+
+export interface UnifiDevice {
+  id: string;
+  mac: string;
+  name: string;
+  model: string;
+  modelName: string;
+  type: 'uap' | 'usw' | 'ugw' | 'udm' | 'uxg' | 'other';
+  ip: string;
+  version: string;
+  adopted: boolean;
+  state: 'online' | 'offline' | 'upgrading' | 'adopting';
+  uptimeSeconds: number;
+  cpuPercent: number;
+  memPercent: number;
+  loadAvg1: number | null;
+  numClients: number;
+  numUserClients: number;
+  numGuestClients: number;
+  txBytes: number;
+  rxBytes: number;
+  satisfaction: number | null;
+  poeWatts: number;
+  portCount: number;
+  ports: UnifiDevicePort[];
+  radios: UnifiDeviceRadio[];
+}
+
+export interface UnifiClientInfo {
+  mac: string;
+  name: string;
+  hostname: string;
+  ip: string;
+  isWired: boolean;
+  network: string;
+  essid: string;
+  channel: number | null;
+  rssi: number | null;
+  txRateMbps: number | null;
+  rxRateMbps: number | null;
+  txBytes: number;
+  rxBytes: number;
+  uptimeSeconds: number;
+  apMac: string;
+  swMac: string;
+  swPort: number | null;
+  oui: string;
+}
+
+export interface UnifiWlanInfo {
+  id: string;
+  name: string;
+  enabled: boolean;
+  security: string;
+  wpaMode: string;
+  isGuest: boolean;
+  vlan: number | null;
+  numClients: number;
+}
+
+export interface UnifiSnapshot {
+  configId: string;
+  name: string;
+  host: string;
+  controllerType: UnifiControllerType;
+  site: string;
+  status: 'online' | 'offline' | 'connecting' | 'error';
+  errorMessage?: string;
+  collectedAt: number;
+  controllerVersion: string;
+  totalDevices: number;
+  onlineDevices: number;
+  totalClients: number;
+  wiredClients: number;
+  wirelessClients: number;
+  guestClients: number;
+  wanIp: string;
+  ispName: string;
+  wanLatencyMs: number | null;
+  wanRxBps: number;
+  wanTxBps: number;
+  devices: UnifiDevice[];
+  clients: UnifiClientInfo[];
+  wlans: UnifiWlanInfo[];
+  history: TelemetryPoint[];
+  isDemo?: boolean;
+}
+
 export type UserRole = 'admin' | 'operator';
 
 export interface AuthUserPublic {
@@ -480,6 +697,8 @@ export interface OverviewResponse {
   proxmox: ProxmoxClusterSnapshot[];
   tailscale: TailscaleSnapshot[];
   opnsense: OpnsenseSnapshot[];
+  hikvision: HikvisionSnapshot[];
+  unifi: UnifiSnapshot[];
   summary: {
     totalServers: number;
     onlineServers: number;
@@ -495,6 +714,15 @@ export interface OverviewResponse {
     opnsenseTotal: number;
     opnsenseGatewaysOnline: number;
     opnsenseGatewaysTotal: number;
+    hikvisionOnline: number;
+    hikvisionTotal: number;
+    hikvisionCamerasOnline: number;
+    hikvisionCamerasTotal: number;
+    unifiOnline?: number;
+    unifiTotal?: number;
+    unifiDevicesOnline?: number;
+    unifiDevicesTotal?: number;
+    unifiClientsTotal?: number;
     avgCpuPercent: number;
     totalMemUsedBytes: number;
     totalMemBytes: number;
@@ -520,3 +748,346 @@ export interface ConnectionTestResult {
   message: string;
   details?: Record<string, string | number>;
 }
+
+// ---- Topology Complete Infrastructure Topology, Rack Builder, Scanner, Healthchecks & Wiki Suite ----
+
+export type TopologyNodeKind =
+  | 'isp'
+  | 'router'
+  | 'firewall'
+  | 'switch'
+  | 'ap'
+  | 'server'
+  | 'proxmox'
+  | 'vm'
+  | 'lxc'
+  | 'docker'
+  | 'nas'
+  | 'nvr'
+  | 'camera'
+  | 'ai'
+  | 'iot'
+  | 'zigbee'
+  | 'zwave'
+  | 'electric'
+  | 'rack'
+  | 'generic';
+
+export type TopologyHealthCheckMethod = 'auto' | 'ping' | 'tcp' | 'http' | 'https' | 'ssh' | 'telnet' | 'prometheus' | 'none';
+
+export type SwitchModelPreset =
+  | 'auto'
+  | 'T1600G-28TS'
+  | 'T1600G-28PS'
+  | 'T2600G-28TS'
+  | 'TL-SG3428'
+  | 'TL-SG2428P'
+  | 'CISCO-28P'
+  | 'UBIQUITI-24P'
+  | 'MIKROTIK-CRS326'
+  | 'GENERIC-24P-4SFP'
+  | 'GENERIC-16P'
+  | 'GENERIC-8P';
+
+export interface TopologySwitchPortState {
+  portNumber: number; // 1..28
+  name: string; // e.g. "Gi1/0/1" or "SFP 25"
+  media: 'rj45' | 'sfp';
+  linkStatus: 'up' | 'down' | 'disabled';
+  speed: string; // "1000M", "100M", "10M", "10G", "Down"
+  duplex?: string;
+  poeSupported?: boolean;
+  poeActive?: boolean;
+  poeWatts?: number;
+  vlan?: number | null;
+  connectedMac?: string;
+  connectedMacs?: string[];
+  connectedDeviceName?: string;
+}
+
+export interface TopologySwitchMetadata {
+  model: string; // e.g. "T1600G-28TS" or "T1600G-28PS"
+  vendor: string; // e.g. "TP-Link JetStream"
+  managementProtocol?: 'ssh' | 'telnet' | 'http' | 'snmp' | 'auto';
+  managementPort?: number;
+  username?: string;
+  hasPassword?: boolean;
+  firmwareVersion?: string;
+  hardwareVersion?: string;
+  serialOrMac?: string;
+  uptimeStr?: string;
+  poeSupported: boolean;
+  poeBudgetWatts?: number;
+  poeUsedWatts?: number;
+  rj45PortCount: number; // 24 for T1600G-28TS / T1600G-28PS
+  sfpPortCount: number; // 4 for T1600G-28TS / T1600G-28PS
+  ports: TopologySwitchPortState[];
+  lldpNeighbors?: Array<{
+    localPort: number;
+    remoteName: string;
+    remoteMac?: string;
+    remoteIp?: string;
+  }>;
+  lastPolledAt?: number;
+}
+
+export interface TopologyServicePort {
+  port: number;
+  protocol: 'tcp' | 'udp';
+  serviceName: string;
+  url?: string;
+  status?: 'online' | 'offline' | 'unknown';
+}
+
+export interface TopologyCanvas {
+  id: string;
+  name: string;
+  description: string;
+  isDefault?: boolean;
+  createdAt: string;
+}
+
+export interface TopologyNode {
+  id: string;
+  canvasId: string;
+  name: string;
+  kind: TopologyNodeKind;
+  x: number;
+  y: number;
+  ipAddress: string;
+  macAddress: string;
+  hostname: string;
+  vlan?: number | null;
+  subnet?: string;
+  manufacturer?: string;
+  osOrFirmware?: string;
+  parentId?: string; // e.g., Proxmox host node ID or Zigbee/Z-Wave coordinator ID
+  linkedSourceKind?: DeviceSourceKind;
+  linkedSourceId?: string;
+  customIconUrl?: string;
+  tags: string[];
+  services: TopologyServicePort[];
+  healthCheck: {
+    method: TopologyHealthCheckMethod;
+    target?: string; // Port number or URL or path
+    intervalSec: number;
+  };
+  status: 'online' | 'offline' | 'warning' | 'unknown';
+  latencyMs: number | null;
+  lastCheckedAt: number | null;
+  statusDetail?: string;
+  rackPlacement?: {
+    rackId: string;
+    startU: number;
+    heightU: number;
+    face: 'front' | 'rear';
+  };
+  meshInfo?: {
+    protocol: 'zigbee' | 'zwave';
+    ieeeOrNodeId: string;
+    role: 'coordinator' | 'router' | 'end-device';
+    lqi?: number;
+    batteryPercent?: number | null;
+  };
+  switchMeta?: TopologySwitchMetadata;
+  docId?: string;
+  createdAt: string;
+}
+
+export type TopologyLinkKind =
+  | 'ethernet'
+  | 'fiber'
+  | 'dac'
+  | 'poe'
+  | 'wifi'
+  | 'vlan'
+  | 'virtual'
+  | 'vpn'
+  | 'zigbee'
+  | 'zwave'
+  | 'power';
+
+export interface TopologyLink {
+  id: string;
+  canvasId: string;
+  sourceId: string;
+  targetId: string;
+  kind: TopologyLinkKind;
+  label: string;
+  speedGbps?: string;
+  sourcePort?: string;
+  targetPort?: string;
+  vlan?: number | null;
+  lqi?: number | null;
+  animated?: boolean;
+  linkedRackPatchId?: string;
+}
+
+export interface TopologyRackSlotItem {
+  id: string;
+  nodeId?: string;
+  name: string;
+  kind:
+    | TopologyNodeKind
+    | 'patch-panel'
+    | 'fiber-patch'
+    | 'cable-manager'
+    | 'ups'
+    | 'pdu'
+    | 'shelf'
+    | 'mini-pc'
+    | 'blank';
+  startU: number;
+  heightU: number;
+  face: 'front' | 'rear';
+  slotIndex?: number; // 0..(slotsTotal-1) for half/third/quarter-width shelf items (NUC, Raspberry Pi)
+  slotsTotal?: number; // 1 = full 19" width, 2 = half-width (2x NUC), 3 = 3x Pi/Mini-PC
+  status?: 'online' | 'offline' | 'warning';
+  ipAddress?: string;
+  portCount?: number;
+  sfpPortCount?: number;
+  driveBays?: number;
+  outletCount?: number;
+  color?: string;
+  switchMeta?: TopologySwitchMetadata;
+}
+
+export interface TopologyPatchCable {
+  id: string;
+  rackId: string;
+  fromRackId?: string;
+  fromItemId: string;
+  fromPort: string;
+  toRackId?: string;
+  toItemId: string;
+  toPort: string;
+  label: string;
+  cableKind: 'cat6' | 'cat6a' | 'fiber-om4' | 'dac-sfp+' | 'poe' | 'power' | 'coax';
+  color: string;
+  linkedTopologyLinkId?: string;
+}
+
+export interface TopologyRack {
+  id: string;
+  name: string;
+  widthInches: 19 | 10;
+  totalU: number;
+  location: string;
+  x?: number;
+  y?: number;
+  items: TopologyRackSlotItem[];
+  patches: TopologyPatchCable[];
+  createdAt: string;
+}
+
+export interface TopologyDiscoveredDevice {
+  id: string;
+  ipAddress: string;
+  hostname: string;
+  macAddress: string;
+  vendor: string;
+  guessedKind: TopologyNodeKind;
+  openPorts: TopologyServicePort[];
+  latencyMs: number | null;
+  source: 'subnet-scan' | 'arp' | 'proxmox' | 'tailscale' | 'opnsense' | 'hikvision' | 'zigbee2mqtt' | 'zwave-js' | 'unraid' | 'switch-probe';
+  switchModel?: string;
+  discoveredAt: number;
+  approved: boolean;
+}
+
+export interface TopologyDocRevision {
+  id: string;
+  timestamp: number;
+  summary: string;
+  content: string;
+}
+
+export interface TopologyDocPage {
+  id: string;
+  title: string;
+  slug: string;
+  icon: string;
+  nodeId?: string;
+  canvasId?: string;
+  isHome?: boolean;
+  content: string;
+  tags: string[];
+  updatedAt: number;
+  revisions: TopologyDocRevision[];
+}
+
+export interface TopologyGitSyncConfig {
+  repoPathOrUrl: string;
+  branch: string;
+  autoCommit: boolean;
+  lastSyncedAt?: number | null;
+  lastSyncMessage?: string;
+}
+
+export interface TopologyState {
+  canvases: TopologyCanvas[];
+  nodes: TopologyNode[];
+  links: TopologyLink[];
+  racks: TopologyRack[];
+  discoveryQueue: TopologyDiscoveredDevice[];
+  docs: TopologyDocPage[];
+  gitSync: TopologyGitSyncConfig;
+  shareEnabled: boolean;
+  sharePasswordProtected: boolean;
+}
+
+export type DockerContainerAction = 'start' | 'stop' | 'restart' | 'pause' | 'unpause' | 'remove';
+
+export interface DockerContainerInfo {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  ports: string;
+  createdAt: string;
+  composeProject?: string;
+  composeService?: string;
+  cpuPercent?: string;
+  memUsage?: string;
+  memPercent?: string;
+  netIO?: string;
+  pids?: string;
+}
+
+export interface DockerImageInfo {
+  id: string;
+  repository: string;
+  tag: string;
+  size: string;
+  createdSince: string;
+}
+
+export interface DockerVolumeInfo {
+  name: string;
+  driver: string;
+  mountpoint: string;
+}
+
+export interface DockerNetworkInfo {
+  id: string;
+  name: string;
+  driver: string;
+  scope: string;
+}
+
+export interface DockerHostSnapshot {
+  serverId: string;
+  serverName: string;
+  host: string;
+  status: 'online' | 'offline' | 'no-docker' | 'error';
+  dockerVersion?: string;
+  errorMessage?: string;
+  isDemo?: boolean;
+  containers: DockerContainerInfo[];
+  images: DockerImageInfo[];
+  volumes: DockerVolumeInfo[];
+  networks: DockerNetworkInfo[];
+  collectedAt: number;
+}
+

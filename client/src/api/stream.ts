@@ -1,9 +1,11 @@
 import type {
+  HikvisionConfigPublic,
   OpnsenseConfigPublic,
   OverviewResponse,
   ProxmoxConfigPublic,
   SshServerPublic,
   TailscaleConfigPublic,
+  UnifiConfigPublic,
 } from '@shared/types';
 import { getAuthToken } from '@/api/auth';
 
@@ -14,6 +16,8 @@ export interface StreamSnapshotMessage {
   proxmox: ProxmoxConfigPublic[];
   tailscale: TailscaleConfigPublic[];
   opnsense?: OpnsenseConfigPublic[];
+  hikvision?: HikvisionConfigPublic[];
+  unifi?: UnifiConfigPublic[];
 }
 
 export type StreamState = 'connecting' | 'live' | 'reconnecting' | 'offline';

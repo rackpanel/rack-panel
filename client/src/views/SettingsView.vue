@@ -281,6 +281,69 @@
           </div>
         </div>
 
+        <!-- Hikvision NVRs, DVRs & Cameras Manager -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Hikvision NVRs, DVRs &amp; Cameras ({{ realHikvision.length }})</span>
+            <button class="btn btn-sm btn-primary" type="button" @click="$emit('add-hikvision')">
+              + Add Hikvision
+            </button>
+          </div>
+          <div v-if="realHikvision.length === 0" class="panel-subtitle" style="padding: 12px 0;">
+            No Hikvision NVR, DVR, or camera added yet. Tap <strong>+ Add Hikvision</strong> to connect your
+            <span class="mono">DS-7732NI-I4 / 16P(B)</span> or IP cameras for live CCTV streams &amp; HDD health.
+          </div>
+          <div v-for="h in realHikvision" :key="h.id" class="conn-row">
+            <div>
+              <div class="conn-name">
+                {{ h.name }}
+                <span class="pill pill-cyan mono" style="margin-left: 6px; font-size: 10px;">
+                  {{ h.deviceKind.toUpperCase() }}
+                </span>
+              </div>
+              <div class="conn-sub mono">
+                {{ h.protocol }}://{{ h.username }}@{{ h.host }}:{{ h.port }} &middot; RTSP :{{ h.rtspPort }}
+              </div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-sm" type="button" @click="$emit('edit-hikvision', h)">Edit</button>
+              <button class="btn btn-sm btn-danger" type="button" @click="$emit('delete-hikvision', h)">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- UniFi Network Controllers Manager -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">UniFi Network Controllers ({{ realUnifi.length }})</span>
+            <button class="btn btn-sm btn-primary" type="button" @click="$emit('add-unifi')">
+              + Add UniFi
+            </button>
+          </div>
+          <div v-if="realUnifi.length === 0" class="panel-subtitle" style="padding: 12px 0;">
+            No UniFi controller added yet. Tap <strong>+ Add UniFi</strong> to connect your UniFi OS gateway or
+            Classic UniFi Network Server.
+          </div>
+          <div v-for="u in realUnifi" :key="u.id" class="conn-row">
+            <div>
+              <div class="conn-name">
+                {{ u.name }}
+                <span class="pill pill-cyan mono" style="margin-left: 6px; font-size: 10px;">
+                  {{ u.controllerType.toUpperCase() }}
+                </span>
+              </div>
+              <div class="conn-sub mono">
+                https://{{ u.host }}:{{ u.port }} &middot; site:{{ u.site }}
+                <span v-if="u.username"> &middot; {{ u.username }}</span>
+              </div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-sm" type="button" @click="$emit('edit-unifi', u)">Edit</button>
+              <button class="btn btn-sm btn-danger" type="button" @click="$emit('delete-unifi', u)">Delete</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Panel Preferences -->
         <div class="panel">
           <div class="panel-header">
@@ -458,26 +521,67 @@
             </div>
           </div>
         </div>
+
+        <!-- Factory Reset (Preserves Users) -->
+        <div class="panel" style="border-color: rgba(239, 68, 68, 0.35);">
+          <div class="panel-header">
+            <span class="panel-title" style="color: #fca5a5;">Factory Reset</span>
+          </div>
+          <p class="panel-subtitle" style="margin: 0 0 12px 0; line-height: 1.5;">
+            Reset all configured connections (SSH, Proxmox, Tailscale, OPNsense, Hikvision, UniFi), topology
+            canvases, racks, wires, docs, and display preferences back to initial install defaults.
+            <strong>Your user account(s) and active session will be preserved.</strong>
+          </p>
+          <button type="button" class="btn btn-danger" @click="factoryResetOpen = true">
+            Reset Rack//Panel to Factory Defaults
+          </button>
+        </div>
       </div>
     </div>
+
+    <UiDialog
+      :open="factoryResetOpen"
+      title="Reset Rack//Panel to Factory Defaults"
+      @close="factoryResetOpen = false"
+    >
+      <p style="color: #cbd5e1; font-size: 14px; line-height: 1.55; margin: 0;">
+        This will permanently remove all saved servers, Proxmox clusters, Tailscale integrations, OPNsense firewalls,
+        Hikvision NVRs/cameras, UniFi controllers/devices, topology canvases, racks, wires, and settings back to when
+        Rack//Panel was first installed.
+      </p>
+      <p style="color: #a7f3d0; font-size: 13px; line-height: 1.5; margin: 10px 0 0 0;">
+        Your user account(s) and current login session will <strong>not</strong> be removed.
+      </p>
+      <template #footer>
+        <UiButton :disabled="factoryResetting" @click="factoryResetOpen = false">Cancel</UiButton>
+        <UiButton variant="danger" :disabled="factoryResetting" @click="confirmFactoryReset">
+          {{ factoryResetting ? 'Resetting...' : 'Yes, Reset Rack//Panel' }}
+        </UiButton>
+      </template>
+    </UiDialog>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref, watch, onMounted } from 'vue';
+import UiDialog from '@/components/ui/UiDialog.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import type {
   AuthUserPublic,
+  HikvisionConfigPublic,
   OpnsenseConfigPublic,
   PanelSettings,
   ProxmoxConfigPublic,
   SshServerPublic,
   TailscaleConfigPublic,
+  UnifiConfigPublic,
   UserRole,
 } from '@shared/types';
 import { api } from '@/api/client';
 
 export default defineComponent({
   name: 'SettingsView',
+  components: { UiDialog, UiButton },
   props: {
     settings: { type: Object as () => PanelSettings, required: true },
     currentUser: { type: Object as () => AuthUserPublic | null, default: null },
@@ -485,6 +589,8 @@ export default defineComponent({
     realProxmox: { type: Array as () => ProxmoxConfigPublic[], required: true },
     realTailscale: { type: Array as () => TailscaleConfigPublic[], required: true },
     realOpnsense: { type: Array as () => OpnsenseConfigPublic[], required: true },
+    realHikvision: { type: Array as () => HikvisionConfigPublic[], default: () => [] },
+    realUnifi: { type: Array as () => UnifiConfigPublic[], default: () => [] },
   },
   setup(props, { emit }) {
     const rackTitle = ref(props.settings.rackTitle || 'RACK//PANEL');
@@ -646,6 +752,29 @@ export default defineComponent({
       }
     }
 
+    const factoryResetOpen = ref(false);
+    const factoryResetting = ref(false);
+
+    async function confirmFactoryReset() {
+      factoryResetting.value = true;
+      try {
+        await api.factoryResetPanel();
+        factoryResetOpen.value = false;
+        emit('toast', {
+          message: 'Rack//Panel reset to factory defaults (user accounts preserved)',
+          error: false,
+        });
+        emit('refresh');
+      } catch (err) {
+        emit('toast', {
+          message: err instanceof Error ? err.message : 'Factory reset failed',
+          error: true,
+        });
+      } finally {
+        factoryResetting.value = false;
+      }
+    }
+
     return {
       rackTitle,
       editingPin,
@@ -667,6 +796,9 @@ export default defineComponent({
       submitPasswordChange,
       submitCreateUser,
       removeUser,
+      factoryResetOpen,
+      factoryResetting,
+      confirmFactoryReset,
     };
   },
 });

@@ -5,7 +5,12 @@ import AuthGate from '@/components/AuthGate.vue';
 import OverviewView from '@/views/OverviewView.vue';
 import ServersView from '@/views/ServersView.vue';
 import ProxmoxView from '@/views/ProxmoxView.vue';
+import DockerView from '@/views/DockerView.vue';
 import OpnsenseView from '@/views/OpnsenseView.vue';
+import SwitchesView from '@/views/SwitchesView.vue';
+import HikvisionView from '@/views/HikvisionView.vue';
+import UnifiView from '@/views/UnifiView.vue';
+import TopologyView from '@/views/TopologyView.vue';
 import TailscaleView from '@/views/TailscaleView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 
@@ -85,10 +90,40 @@ const routes: RouteConfig[] = [
     meta: { requiresAuth: true, tab: 'proxmox' },
   },
   {
+    path: '/docker/:subTab?',
+    name: 'docker',
+    component: DockerView,
+    meta: { requiresAuth: true, tab: 'docker' },
+  },
+  {
     path: '/opnsense/:subTab?',
     name: 'opnsense',
     component: OpnsenseView,
     meta: { requiresAuth: true, tab: 'opnsense' },
+  },
+  {
+    path: '/switches/:subTab?',
+    name: 'switches',
+    component: SwitchesView,
+    meta: { requiresAuth: true, tab: 'switches' },
+  },
+  {
+    path: '/hikvision/:subTab?',
+    name: 'hikvision',
+    component: HikvisionView,
+    meta: { requiresAuth: true, tab: 'hikvision' },
+  },
+  {
+    path: '/unifi/:subTab?',
+    name: 'unifi',
+    component: UnifiView,
+    meta: { requiresAuth: true, tab: 'unifi' },
+  },
+  {
+    path: '/topology/:subTab?',
+    name: 'topology',
+    component: TopologyView,
+    meta: { requiresAuth: true, tab: 'topology' },
   },
   {
     path: '/tailscale',

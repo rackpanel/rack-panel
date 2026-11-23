@@ -22,8 +22,8 @@ LABEL org.opencontainers.image.title="RACK//PANEL" \
       org.opencontainers.image.source="https://github.com/rackpanel/rack-panel" \
       org.opencontainers.image.licenses="MIT"
 
-# Include Tailscale CLI, curl & OpenSSH client so Rack Panel can inspect/manage Tailscale directly
-RUN apk add --no-cache tailscale curl openssh-client
+# Include Tailscale CLI, curl, OpenSSH client & FFmpeg (for RTSP/H.265 Hikvision camera streams)
+RUN apk add --no-cache tailscale curl openssh-client ffmpeg
 
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/shared ./shared
