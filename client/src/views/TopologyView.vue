@@ -440,7 +440,7 @@
                             :kind="node.kind"
                             :name="node.name"
                             :hostname="node.hostname"
-                            :vendor="node.vendor"
+                            :vendor="node.manufacturer || (node.switchMeta && node.switchMeta.vendor) || ''"
                             :size="24"
                           />
                           <div class="hl-node-title" :title="node.name">{{ node.name }}</div>
@@ -651,7 +651,7 @@
                       :kind="node.kind"
                       :name="node.name"
                       :hostname="node.hostname"
-                      :vendor="node.vendor"
+                      :vendor="node.manufacturer || (node.switchMeta && node.switchMeta.vendor) || ''"
                       :size="32"
                     />
                     <div style="min-width: 0; flex: 1;">
