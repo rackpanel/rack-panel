@@ -677,6 +677,11 @@ export interface PanelSettings {
   idleSplashSeconds: number;
   splashPinEnabled: boolean;
   hasSplashPin?: boolean;
+  teslaClientId?: string;
+  teslaClientSecret?: string;
+  hasTeslaClientSecret?: boolean;
+  teslaRedirectUri?: string;
+  teslaPartnerDomain?: string;
 }
 
 export interface AlertItem {
@@ -699,6 +704,7 @@ export interface OverviewResponse {
   opnsense: OpnsenseSnapshot[];
   hikvision: HikvisionSnapshot[];
   unifi: UnifiSnapshot[];
+  ups?: UpsSnapshot[];
   summary: {
     totalServers: number;
     onlineServers: number;
@@ -1088,6 +1094,74 @@ export interface DockerHostSnapshot {
   images: DockerImageInfo[];
   volumes: DockerVolumeInfo[];
   networks: DockerNetworkInfo[];
+  collectedAt: number;
+}
+
+export type UpsProtocol = 'snmp' | 'nut' | 'powerwall' | 'powerwall-cloud';
+
+export type UpsModelPreset =
+  | 'auto'
+  | 'ibm-3000va-2700w-hv'
+  | 'tesla-powerwall-2'
+  | 'tesla-powerwall-3'
+  | 'apc-smartups'
+  | 'eaton-5px'
+  | 'cyberpower'
+  | 'generic-rfc1628';
+
+export interface UpsConfig {
+  id: string;
+  name: string;
+  host: string;
+  protocol: UpsProtocol;
+  port: number;
+  community?: string;
+  password?: string;
+  snmpVersion: '1' | '2c';
+  upsName?: string;
+  modelPreset: UpsModelPreset;
+  ratedVa: number;
+  ratedWatts: number;
+  heightU: number;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface UpsConfigPublic extends Omit<UpsConfig, 'community' | 'password'> {
+  hasCommunity: boolean;
+  hasPassword?: boolean;
+  isDemo?: boolean;
+}
+
+export interface UpsSnapshot {
+  configId: string;
+  name: string;
+  host: string;
+  protocol: UpsProtocol;
+  model: string;
+  manufacturer: string;
+  serialNumber: string;
+  firmwareVersion: string;
+  status: 'online' | 'on-battery' | 'low-battery' | 'bypass' | 'offline' | 'error';
+  outputSource: 'normal' | 'battery' | 'bypass' | 'other' | 'unknown';
+  batteryChargePercent: number | null;
+  estimatedRuntimeMinutes: number | null;
+  batteryVoltage: number | null;
+  batteryTempC: number | null;
+  inputVoltage: number | null;
+  inputFrequencyHz: number | null;
+  outputVoltage: number | null;
+  outputLoadPercent: number | null;
+  outputWatts: number | null;
+  solarWatts?: number | null;
+  gridWatts?: number | null;
+  batteryWatts?: number | null;
+  gridStatus?: string;
+  ratedVa: number;
+  ratedWatts: number;
+  alarmsCount: number;
+  isDemo?: boolean;
+  errorMessage?: string;
   collectedAt: number;
 }
 

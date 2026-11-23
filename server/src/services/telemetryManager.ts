@@ -20,6 +20,8 @@ import type {
   TailscaleSnapshot,
   UnifiConfig,
   UnifiSnapshot,
+  UpsConfig,
+  UpsSnapshot,
 } from '../../../shared/types.js';
 import { ConfigStore } from '../store/configStore.js';
 import { SshCollector } from './sshCollector.js';
@@ -28,6 +30,7 @@ import { TailscaleClient } from './tailscaleClient.js';
 import { OpnsenseClient } from './opnsenseClient.js';
 import { HikvisionClient } from './hikvisionClient.js';
 import { UnifiClient } from './unifiClient.js';
+import { UpsClient } from './upsClient.js';
 import { DemoProvider } from './demoProvider.js';
 import { DeviceIdentityRegistry } from './deviceRegistry.js';
 
@@ -40,6 +43,7 @@ export class TelemetryManager {
   private opnsenseSnapshots = new Map<string, OpnsenseSnapshot>();
   private hikvisionSnapshots = new Map<string, HikvisionSnapshot>();
   private unifiSnapshots = new Map<string, UnifiSnapshot>();
+  private upsSnapshots = new Map<string, UpsSnapshot>();
   private tailscaleLastPoll = new Map<string, number>();
   private preferredSshPrimary = new Map<string, string>();
   private preferredProxmoxPrimary = new Map<string, string>();
@@ -60,6 +64,7 @@ export class TelemetryManager {
     readonly opnsense: OpnsenseClient,
     readonly hikvision: HikvisionClient,
     readonly unifi: UnifiClient,
+    readonly ups: UpsClient,
   ) {}
 
   onUpdate(listener: () => void): () => void {
@@ -573,6 +578,19 @@ export class TelemetryManager {
           const snap = await this.unifi.collect(uCfg);
           this.unifiSnapshots.set(uCfg.id, snap);
         }),
+        ...this.store
+          .listUps()
+          .filter((u) => u.enabled)
+          .map(async (upsCfg) => {
+            const snap = await this.ups.collect(upsCfg, ({ accessToken, refreshToken }) => {
+              this.store.upsertUps({
+                ...upsCfg,
+                password: accessToken,
+                community: refreshToken,
+              });
+            });
+            this.upsSnapshots.set(upsCfg.id, snap);
+          }),
       ]);
 
       // Final identity rebuild so overview carries complete canonical IDs & linkedSources
@@ -921,6 +939,26 @@ export class TelemetryManager {
     this.notify();
   }
 
+  async pollUpsById(id: string): Promise<UpsSnapshot | null> {
+    const cfg = this.store.getUps(id);
+    if (!cfg || !cfg.enabled) return null;
+    const snap = await this.ups.collect(cfg, ({ accessToken, refreshToken }) => {
+      this.store.upsertUps({
+        ...cfg,
+        password: accessToken,
+        community: refreshToken,
+      });
+    });
+    this.upsSnapshots.set(cfg.id, snap);
+    this.notify();
+    return snap;
+  }
+
+  removeUpsState(id: string): void {
+    this.upsSnapshots.delete(id);
+    this.notify();
+  }
+
   resetAllSnapshots(): void {
     this.ssh.disconnectAll();
     this.sshMetrics.clear();
@@ -931,6 +969,7 @@ export class TelemetryManager {
     this.opnsenseSnapshots.clear();
     this.hikvisionSnapshots.clear();
     this.unifiSnapshots.clear();
+    this.upsSnapshots.clear();
     this.tailscaleLastPoll.clear();
     this.preferredSshPrimary.clear();
     this.preferredProxmoxPrimary.clear();
@@ -1565,6 +1604,37 @@ export class TelemetryManager {
       unifiClientsTotal += u.totalClients;
     }
 
+    const enabledUps = this.store.listUps().filter((u) => u.enabled);
+    const ups: UpsSnapshot[] = enabledUps.map((u) => {
+      return (
+        this.upsSnapshots.get(u.id) ?? {
+          configId: u.id,
+          name: u.name,
+          host: u.host,
+          protocol: u.protocol,
+          model: u.modelPreset === 'ibm-3000va-2700w-hv' ? 'IBM 3000VA/2700W Rack HV UPS' : u.name,
+          manufacturer: 'IBM / Eaton',
+          serialNumber: '',
+          firmwareVersion: '',
+          status: 'offline',
+          outputSource: 'unknown',
+          batteryChargePercent: null,
+          estimatedRuntimeMinutes: null,
+          batteryVoltage: null,
+          batteryTempC: null,
+          inputVoltage: null,
+          inputFrequencyHz: null,
+          outputVoltage: null,
+          outputLoadPercent: null,
+          outputWatts: null,
+          ratedVa: u.ratedVa || 3000,
+          ratedWatts: u.ratedWatts || 2700,
+          alarmsCount: 0,
+          collectedAt: now,
+        }
+      );
+    });
+
     return {
       timestamp: now,
       settings,
@@ -1574,6 +1644,7 @@ export class TelemetryManager {
       opnsense,
       hikvision,
       unifi,
+      ups,
       summary: {
         totalServers: servers.length,
         onlineServers,

@@ -110,6 +110,24 @@ export const unifiConfigs = sqliteTable('unifi_configs', {
   createdAt: text('created_at').notNull(),
 });
 
+export const upsConfigs = sqliteTable('ups_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  host: text('host').notNull(),
+  protocol: text('protocol').notNull().default('snmp'),
+  port: integer('port').notNull().default(161),
+  community: text('community'),
+  password: text('password'),
+  snmpVersion: text('snmp_version').notNull().default('2c'),
+  upsName: text('ups_name'),
+  modelPreset: text('model_preset').notNull().default('ibm-3000va-2700w-hv'),
+  ratedVa: integer('rated_va').notNull().default(3000),
+  ratedWatts: integer('rated_watts').notNull().default(2700),
+  heightU: integer('height_u').notNull().default(2),
+  enabled: integer('enabled').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+});
+
 export const topologyMeta = sqliteTable('topology_meta', {
   key: text('key').primaryKey(),
   valueJson: text('value_json').notNull(),

@@ -13,6 +13,7 @@ import type {
   TailscaleConfig,
 } from '../../../shared/types.js';
 import { DockerService } from '../services/dockerService.js';
+import { getOrCreateTeslaPartnerPublicKeyPem } from '../services/upsClient.js';
 import {
   bringUpLocalTailscale,
   buildRemoteTailscaleInstallScript,
@@ -1096,6 +1097,140 @@ export class FleetController {
       res.json(result);
     } catch (err) {
       res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // ---- UPS / Power Units ----
+
+  @Get('/ups')
+  listUps(@Res() res: express.Response): void {
+    res.json(this.rt.store.listUpsPublic());
+  }
+
+  @Post('/ups')
+  upsertUps(@Req() req: express.Request, @Res() res: express.Response): void {
+    try {
+      const body = req.body ?? {};
+      const protocol =
+        body.protocol === 'nut'
+          ? 'nut'
+          : body.protocol === 'powerwall'
+            ? 'powerwall'
+            : body.protocol === 'powerwall-cloud'
+              ? 'powerwall-cloud'
+              : 'snmp';
+      const defaultHost = protocol === 'powerwall-cloud' ? 'fleet-api.prd.eu.vn.cloud.tesla.com' : '';
+      const defaultPort = protocol === 'nut' ? 3493 : protocol === 'powerwall' || protocol === 'powerwall-cloud' ? 443 : 161;
+      const saved = this.rt.store.upsertUps({
+        id: body.id ? String(body.id) : undefined,
+        name: String(body.name || 'IBM 3000VA/2700W Rack HV UPS'),
+        host: String(body.host || defaultHost),
+        protocol,
+        port: Number(body.port) || defaultPort,
+        community: body.community !== undefined ? String(body.community) : undefined,
+        password: body.password !== undefined ? String(body.password) : undefined,
+        snmpVersion: body.snmpVersion === '1' ? '1' : '2c',
+        upsName: body.upsName !== undefined ? String(body.upsName) : undefined,
+        modelPreset: body.modelPreset ? String(body.modelPreset) as any : 'ibm-3000va-2700w-hv',
+        ratedVa: Number(body.ratedVa) || 3000,
+        ratedWatts: Number(body.ratedWatts) || 2700,
+        heightU: Number(body.heightU) || 2,
+        enabled: body.enabled !== false,
+      });
+      void this.rt.telemetry.pollUpsById(saved.id);
+      res.status(body.id ? 200 : 201).json(this.rt.store.toPublicUps(saved));
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  @Post('/ups/test')
+  async testUps(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
+    try {
+      const body = req.body ?? {};
+      const existing = body.id ? this.rt.store.getUps(String(body.id)) : undefined;
+      const protocol =
+        body.protocol === 'nut'
+          ? 'nut'
+          : body.protocol === 'powerwall'
+            ? 'powerwall'
+            : body.protocol === 'powerwall-cloud'
+              ? 'powerwall-cloud'
+              : existing?.protocol || 'snmp';
+      const defaultPort = protocol === 'nut' ? 3493 : protocol === 'powerwall' || protocol === 'powerwall-cloud' ? 443 : 161;
+      const result = await this.rt.ups.testConnection({
+        id: existing?.id ?? 'test',
+        name: String(body.name || 'UPS'),
+        host: String(body.host || existing?.host || (protocol === 'powerwall-cloud' ? 'fleet-api.prd.eu.vn.cloud.tesla.com' : '')),
+        protocol,
+        port: Number(body.port || existing?.port || defaultPort),
+        community: body.community ? String(body.community) : existing?.community || 'public',
+        password: body.password ? String(body.password) : existing?.password,
+        snmpVersion: body.snmpVersion === '1' ? '1' : existing?.snmpVersion || '2c',
+        upsName: body.upsName !== undefined ? String(body.upsName) : existing?.upsName,
+        modelPreset: (body.modelPreset || existing?.modelPreset || 'ibm-3000va-2700w-hv') as any,
+        ratedVa: Number(body.ratedVa || existing?.ratedVa || 3000),
+        ratedWatts: Number(body.ratedWatts || existing?.ratedWatts || 2700),
+        heightU: Number(body.heightU || existing?.heightU || 2),
+        enabled: true,
+        createdAt: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  @Delete('/ups/:id')
+  deleteUps(@Req() req: express.Request, @Res() res: express.Response): void {
+    const id = String(req.params.id);
+    const deleted = this.rt.store.deleteUps(id);
+    if (deleted) this.rt.telemetry.removeUpsState(id);
+    res.json({ deleted });
+  }
+
+  @Post('/ups/tesla-auth/start')
+  startTeslaAuth(@Req() req: express.Request, @Res() res: express.Response): void {
+    const saved = this.rt.store.getTeslaPartnerSecrets();
+    const clientId = req.body?.clientId ? String(req.body.clientId) : saved.clientId;
+    const redirectUri = req.body?.redirectUri ? String(req.body.redirectUri) : saved.redirectUri;
+    if (!clientId) {
+      res.status(400).json({ error: 'Tesla Client ID is not configured. Add it in Settings first.' });
+      return;
+    }
+    res.json(this.rt.ups.startTeslaOAuthPkce(clientId, redirectUri));
+  }
+
+  @Post('/ups/tesla-auth/exchange')
+  async exchangeTeslaAuth(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
+    try {
+      const callbackUrl = String(req.body?.callbackUrl || '');
+      const state = req.body?.state ? String(req.body.state) : undefined;
+      const tokens = await this.rt.ups.exchangeTeslaOAuthCallback(callbackUrl, state);
+      res.json({ ok: true, ...tokens });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  @Get('/ups/tesla-auth/public-key')
+  getTeslaPublicKey(@Res() res: express.Response): void {
+    res.json({ publicKeyPem: getOrCreateTeslaPartnerPublicKeyPem() });
+  }
+
+  @Post('/ups/tesla-auth/register-partner')
+  async registerTeslaPartner(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
+    try {
+      const saved = this.rt.store.getTeslaPartnerSecrets();
+      const result = await this.rt.ups.registerTeslaPartnerAccount({
+        clientId: String(req.body?.clientId || saved.clientId || ''),
+        clientSecret: String(req.body?.clientSecret || saved.clientSecret || ''),
+        domain: String(req.body?.domain || saved.domain || ''),
+        regionHost: req.body?.regionHost ? String(req.body.regionHost) : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
 }

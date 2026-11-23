@@ -154,6 +154,23 @@ export class TursoDatabase {
         enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL
       );`,
+      `CREATE TABLE IF NOT EXISTS ups_configs (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        protocol TEXT NOT NULL DEFAULT 'snmp',
+        port INTEGER NOT NULL DEFAULT 161,
+        community TEXT,
+        password TEXT,
+        snmp_version TEXT NOT NULL DEFAULT '2c',
+        ups_name TEXT,
+        model_preset TEXT NOT NULL DEFAULT 'ibm-3000va-2700w-hv',
+        rated_va INTEGER NOT NULL DEFAULT 3000,
+        rated_watts INTEGER NOT NULL DEFAULT 2700,
+        height_u INTEGER NOT NULL DEFAULT 2,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );`,
       `CREATE TABLE IF NOT EXISTS topology_meta (
         key TEXT PRIMARY KEY,
         value_json TEXT NOT NULL
@@ -286,6 +303,11 @@ export class TursoDatabase {
 
     for (const sql of schemaStatements) {
       await this.client.execute(sql);
+    }
+    try {
+      await this.client.execute('ALTER TABLE ups_configs ADD COLUMN password TEXT;');
+    } catch {
+      // column already exists
     }
     this.initialized = true;
   }

@@ -18,6 +18,8 @@ import type {
   TailscaleConfigPublic,
   UnifiConfig,
   UnifiConfigPublic,
+  UpsConfig,
+  UpsConfigPublic,
   UserRole,
 } from '../../../shared/types.js';
 import type { TursoDatabase } from '../db/tursoDb.js';
@@ -30,6 +32,7 @@ import {
   sshServers,
   tailscaleConfigs,
   unifiConfigs,
+  upsConfigs,
   users,
 } from '../db/schema.js';
 
@@ -84,6 +87,7 @@ interface PersistedData {
   opnsense: OpnsenseConfig[];
   hikvision: HikvisionConfig[];
   unifi: UnifiConfig[];
+  ups?: UpsConfig[];
 }
 
 function hashPassword(plain: string): string {
@@ -348,6 +352,25 @@ export class ConfigStore {
       createdAt: r.createdAt,
     }));
 
+    const upsRows = await dz.select().from(upsConfigs);
+    out.ups = upsRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      host: r.host,
+      protocol: (r.protocol as UpsConfig['protocol']) || 'snmp',
+      port: r.port,
+      community: decryptSecret(r.community || undefined),
+      password: decryptSecret(r.password || undefined),
+      snmpVersion: (r.snmpVersion as UpsConfig['snmpVersion']) || '2c',
+      upsName: r.upsName || undefined,
+      modelPreset: (r.modelPreset as UpsConfig['modelPreset']) || 'ibm-3000va-2700w-hv',
+      ratedVa: r.ratedVa,
+      ratedWatts: r.ratedWatts,
+      heightU: r.heightU,
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }));
+
     return out;
   }
 
@@ -540,6 +563,32 @@ export class ConfigStore {
           )
           .onConflictDoNothing();
       }
+
+      await tx.delete(upsConfigs);
+      if ((snap.ups ?? []).length > 0) {
+        await tx
+          .insert(upsConfigs)
+          .values(
+            (snap.ups ?? []).map((u) => ({
+              id: u.id,
+              name: u.name,
+              host: u.host,
+              protocol: u.protocol,
+              port: u.port,
+              community: encryptSecret(u.community) || null,
+              password: encryptSecret(u.password) || null,
+              snmpVersion: u.snmpVersion || '2c',
+              upsName: u.upsName || null,
+              modelPreset: u.modelPreset || 'ibm-3000va-2700w-hv',
+              ratedVa: u.ratedVa || 3000,
+              ratedWatts: u.ratedWatts || 2700,
+              heightU: u.heightU || 2,
+              enabled: u.enabled ? 1 : 0,
+              createdAt: u.createdAt,
+            })),
+          )
+          .onConflictDoNothing();
+      }
     });
   }
 
@@ -702,10 +751,27 @@ export class ConfigStore {
 
   getSettings(): PanelSettings {
     const hasSplashPin = Boolean(this.data.splashPin && /^\d{4}$/.test(this.data.splashPin));
+    const hasTeslaClientSecret = Boolean(this.data.settings.teslaClientSecret);
     return {
       ...this.data.settings,
+      teslaClientSecret: undefined,
+      hasTeslaClientSecret,
       splashPinEnabled: Boolean(this.data.settings.splashPinEnabled && hasSplashPin),
       hasSplashPin,
+    };
+  }
+
+  getTeslaPartnerSecrets(): {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    domain: string;
+  } {
+    return {
+      clientId: (this.data.settings.teslaClientId || '').trim(),
+      clientSecret: (this.data.settings.teslaClientSecret || '').trim(),
+      redirectUri: (this.data.settings.teslaRedirectUri || 'https://auth.tesla.com/void/callback').trim(),
+      domain: (this.data.settings.teslaPartnerDomain || '').trim(),
     };
   }
 
@@ -733,7 +799,13 @@ export class ConfigStore {
   }
 
   updateSettings(patch: Partial<PanelSettings> & { splashPin?: string }): PanelSettings {
-    const { splashPin, hasSplashPin: _ignored, ...rest } = patch;
+    const {
+      splashPin,
+      hasSplashPin: _ignored,
+      hasTeslaClientSecret: _ignoredSecret,
+      teslaClientSecret,
+      ...rest
+    } = patch;
     if (splashPin !== undefined && splashPin !== '') {
       const cleaned = String(splashPin).trim();
       if (!/^\d{4}$/.test(cleaned)) {
@@ -757,6 +829,10 @@ export class ConfigStore {
     this.data.settings = {
       ...this.data.settings,
       ...rest,
+      teslaClientSecret:
+        teslaClientSecret !== undefined && teslaClientSecret !== ''
+          ? String(teslaClientSecret).trim()
+          : this.data.settings.teslaClientSecret,
       splashPinEnabled: nextEnabled,
       pollIntervalMs: Math.max(2000, Math.min(60000, Number(rest.pollIntervalMs ?? this.data.settings.pollIntervalMs))),
     };
@@ -1273,6 +1349,77 @@ export class ConfigStore {
     const before = this.data.unifi.length;
     this.data.unifi = this.data.unifi.filter((u) => u.id !== id);
     if (this.data.unifi.length !== before) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  listUps(): UpsConfig[] {
+    return (this.data.ups ?? []).map((u) => ({ ...u }));
+  }
+
+  toPublicUps(u: UpsConfig): UpsConfigPublic {
+    const { community, password, ...rest } = u;
+    return {
+      ...rest,
+      hasCommunity: Boolean(community),
+      hasPassword: Boolean(password),
+    };
+  }
+
+  listUpsPublic(): UpsConfigPublic[] {
+    return this.listUps().map((u) => this.toPublicUps(u));
+  }
+
+  getUps(id: string): UpsConfig | undefined {
+    return (this.data.ups ?? []).find((u) => u.id === id);
+  }
+
+  upsertUps(input: Partial<UpsConfig> & { name: string; host: string }): UpsConfig {
+    if (!this.data.ups) this.data.ups = [];
+    const existing = input.id ? this.data.ups.find((u) => u.id === input.id) : undefined;
+    const protocol = input.protocol ?? existing?.protocol ?? 'snmp';
+    const defaultPort = protocol === 'nut' ? 3493 : protocol === 'powerwall' ? 443 : 161;
+    const record: UpsConfig = {
+      id: existing?.id ?? `ups-${crypto.randomBytes(5).toString('hex')}`,
+      name: input.name.trim(),
+      host: input.host.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+      protocol,
+      port: Number(input.port) || existing?.port || defaultPort,
+      community:
+        input.community !== undefined && input.community !== ''
+          ? input.community.trim()
+          : existing?.community ?? 'public',
+      password:
+        input.password !== undefined && input.password !== ''
+          ? input.password
+          : existing?.password,
+      snmpVersion: input.snmpVersion ?? existing?.snmpVersion ?? '2c',
+      upsName: input.upsName !== undefined ? input.upsName.trim() : existing?.upsName,
+      modelPreset: input.modelPreset ?? existing?.modelPreset ?? 'ibm-3000va-2700w-hv',
+      ratedVa: Number(input.ratedVa) || existing?.ratedVa || 3000,
+      ratedWatts: Number(input.ratedWatts) || existing?.ratedWatts || 2700,
+      heightU: Number(input.heightU) || existing?.heightU || 2,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+
+    if (existing) {
+      const idx = this.data.ups.findIndex((u) => u.id === existing.id);
+      this.data.ups[idx] = record;
+    } else {
+      this.data.ups.push(record);
+    }
+    this.save();
+    return record;
+  }
+
+  deleteUps(id: string): boolean {
+    if (!this.data.ups) return false;
+    const before = this.data.ups.length;
+    this.data.ups = this.data.ups.filter((u) => u.id !== id);
+    if (this.data.ups.length !== before) {
       this.save();
       return true;
     }

@@ -9,6 +9,7 @@ import { TailscaleClient } from './services/tailscaleClient.js';
 import { OpnsenseClient } from './services/opnsenseClient.js';
 import { HikvisionClient } from './services/hikvisionClient.js';
 import { UnifiClient } from './services/unifiClient.js';
+import { UpsClient } from './services/upsClient.js';
 import { TopologyService } from './services/topologyService.js';
 import { TelemetryManager } from './services/telemetryManager.js';
 
@@ -42,6 +43,7 @@ export class RackPanelRuntime implements OnInit, OnDestroy {
   readonly opnsense = new OpnsenseClient();
   readonly hikvision = new HikvisionClient();
   readonly unifi = new UnifiClient();
+  readonly ups = new UpsClient();
   readonly topology = new TopologyService(this.store, this.db);
   readonly telemetry = new TelemetryManager(
     this.store,
@@ -51,6 +53,7 @@ export class RackPanelRuntime implements OnInit, OnDestroy {
     this.opnsense,
     this.hikvision,
     this.unifi,
+    this.ups,
   );
 
   async $onInit(): Promise<void> {

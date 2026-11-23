@@ -522,6 +522,80 @@
           </div>
         </div>
 
+        <!-- Tesla Fleet API Credentials (for Powerwall Cloud) -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Tesla Fleet API Credentials</span>
+            <span
+              class="pill mono"
+              :class="settings.teslaClientId && settings.hasTeslaClientSecret ? 'pill-ok' : 'pill-muted'"
+              style="font-size: 10px;"
+            >
+              {{ settings.teslaClientId && settings.hasTeslaClientSecret ? 'CONFIGURED' : 'NOT SET' }}
+            </span>
+          </div>
+          <p class="panel-subtitle" style="margin: 0 0 12px 0; line-height: 1.5;">
+            Required before using <strong>Tesla Cloud / Fleet API</strong> under <strong>Devices &rarr; UPS</strong>.
+            Public key is hosted at <span class="mono">/.well-known/appspecific/com.tesla.3p.public-key.pem</span>.
+          </p>
+
+          <div class="rack-row">
+            <div class="col-6 field">
+              <label class="field-label">Tesla App Client ID</label>
+              <input
+                v-model="teslaForm.clientId"
+                class="input mono"
+                type="text"
+                placeholder="Client ID from developer.tesla.com"
+              />
+            </div>
+            <div class="col-6 field">
+              <label class="field-label">Tesla App Client Secret</label>
+              <input
+                v-model="teslaForm.clientSecret"
+                class="input mono"
+                type="password"
+                :placeholder="settings.hasTeslaClientSecret ? 'Saved (leave blank to keep)' : 'Client Secret from developer.tesla.com'"
+              />
+            </div>
+            <div class="col-6 field">
+              <label class="field-label">Registered Redirect URI</label>
+              <input
+                v-model="teslaForm.redirectUri"
+                class="input mono"
+                type="text"
+                placeholder="https://auth.tesla.com/void/callback"
+              />
+            </div>
+            <div class="col-6 field">
+              <label class="field-label">Allowed Domain (Partner Registration)</label>
+              <input
+                v-model="teslaForm.partnerDomain"
+                class="input mono"
+                type="text"
+                placeholder="ashleys-macbook-pro.tail9bf2e.ts.net"
+              />
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top: 4px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary" :disabled="savingTesla" @click="saveTeslaCreds">
+              {{ savingTesla ? 'Saving...' : 'Save Tesla Credentials' }}
+            </button>
+            <button
+              type="button"
+              class="btn"
+              :disabled="registeringTesla || !teslaForm.clientId.trim() || (!teslaForm.clientSecret.trim() && !settings.hasTeslaClientSecret) || !teslaForm.partnerDomain.trim()"
+              @click="registerTeslaPartnerFromSettings"
+            >
+              {{ registeringTesla ? 'Registering...' : 'Register Partner Account (EU)' }}
+            </button>
+            <button type="button" class="btn" @click="copyTeslaPublicKey">
+              Copy Public Key PEM
+            </button>
+          </div>
+        </div>
+
         <!-- Factory Reset (Preserves Users) -->
         <div class="panel" style="border-color: rgba(239, 68, 68, 0.35);">
           <div class="panel-header">
@@ -597,6 +671,16 @@ export default defineComponent({
     const editingPin = ref(false);
     const pinInput = ref('');
     const enableOnPinSave = ref(false);
+
+    const teslaForm = ref({
+      clientId: props.settings.teslaClientId || '',
+      clientSecret: '',
+      redirectUri: props.settings.teslaRedirectUri || 'https://auth.tesla.com/void/callback',
+      partnerDomain:
+        props.settings.teslaPartnerDomain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+    });
+    const savingTesla = ref(false);
+    const registeringTesla = ref(false);
 
     const users = ref<AuthUserPublic[]>([]);
     const addingUser = ref(false);
@@ -684,6 +768,78 @@ export default defineComponent({
         if (v) rackTitle.value = v;
       },
     );
+
+    watch(
+      () => props.settings,
+      (s) => {
+        if (s.teslaClientId !== undefined) teslaForm.value.clientId = s.teslaClientId;
+        if (s.teslaRedirectUri) teslaForm.value.redirectUri = s.teslaRedirectUri;
+        if (s.teslaPartnerDomain) teslaForm.value.partnerDomain = s.teslaPartnerDomain;
+      },
+      { deep: true },
+    );
+
+    async function saveTeslaCreds() {
+      savingTesla.value = true;
+      try {
+        await patch(
+          {
+            teslaClientId: teslaForm.value.clientId.trim(),
+            ...(teslaForm.value.clientSecret.trim()
+              ? { teslaClientSecret: teslaForm.value.clientSecret.trim() }
+              : {}),
+            teslaRedirectUri: teslaForm.value.redirectUri.trim() || 'https://auth.tesla.com/void/callback',
+            teslaPartnerDomain: teslaForm.value.partnerDomain.trim(),
+          },
+          'Tesla Fleet API credentials saved',
+        );
+        teslaForm.value.clientSecret = '';
+      } finally {
+        savingTesla.value = false;
+      }
+    }
+
+    async function registerTeslaPartnerFromSettings() {
+      registeringTesla.value = true;
+      try {
+        await api.updateSettings({
+          teslaClientId: teslaForm.value.clientId.trim(),
+          ...(teslaForm.value.clientSecret.trim()
+            ? { teslaClientSecret: teslaForm.value.clientSecret.trim() }
+            : {}),
+          teslaRedirectUri: teslaForm.value.redirectUri.trim() || 'https://auth.tesla.com/void/callback',
+          teslaPartnerDomain: teslaForm.value.partnerDomain.trim(),
+        });
+        const res = await api.registerTeslaPartnerAccount({
+          clientId: teslaForm.value.clientId.trim(),
+          clientSecret: teslaForm.value.clientSecret.trim(),
+          domain: teslaForm.value.partnerDomain.trim(),
+          regionHost: 'fleet-api.prd.eu.vn.cloud.tesla.com',
+        });
+        emit('toast', { message: res.message, error: false });
+        emit('refresh');
+      } catch (err) {
+        emit('toast', {
+          message: err instanceof Error ? err.message : 'Partner registration failed',
+          error: true,
+        });
+      } finally {
+        registeringTesla.value = false;
+      }
+    }
+
+    async function copyTeslaPublicKey() {
+      try {
+        const res = await api.getTeslaPartnerPublicKey();
+        await navigator.clipboard.writeText(res.publicKeyPem);
+        emit('toast', { message: 'Tesla public key PEM copied to clipboard', error: false });
+      } catch (err) {
+        emit('toast', {
+          message: err instanceof Error ? err.message : 'Failed to copy public key',
+          error: true,
+        });
+      }
+    }
 
     async function patch(data: Partial<PanelSettings> & { splashPin?: string }, customMessage?: string) {
       try {
@@ -777,6 +933,12 @@ export default defineComponent({
 
     return {
       rackTitle,
+      teslaForm,
+      savingTesla,
+      registeringTesla,
+      saveTeslaCreds,
+      registerTeslaPartnerFromSettings,
+      copyTeslaPublicKey,
       editingPin,
       pinInput,
       enableOnPinSave,

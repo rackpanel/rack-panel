@@ -304,7 +304,7 @@ export class TopologyController {
   async autoScan(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
     try {
       const rawKind = String(req.body?.kind || 'server');
-      const validKinds: AutoScanDeviceKind[] = ['server', 'proxmox', 'opnsense', 'switch', 'hikvision', 'unifi'];
+      const validKinds: AutoScanDeviceKind[] = ['server', 'proxmox', 'opnsense', 'switch', 'hikvision', 'unifi', 'ups'];
       if (!validKinds.includes(rawKind as AutoScanDeviceKind)) {
         res.status(400).json({ error: `Invalid autoscan kind: ${rawKind}` });
         return;

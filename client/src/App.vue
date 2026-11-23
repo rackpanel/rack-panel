@@ -12,13 +12,32 @@
 
   <div v-else class="rack-shell">
     <!-- Persistent Touch Navigation Rail (Left on Landscape, Bottom on Narrow) -->
-    <aside class="nav-rail">
-      <router-link to="/overview" class="rail-brand" title="RACK//PANEL">
-        <img src="/logo.jpg" alt="RACK//PANEL" class="rail-brand-logo" />
-      </router-link>
+    <aside class="nav-rail" :class="{ 'rail-compact': sidebarCompact }">
+      <div class="rail-brand-row">
+        <router-link to="/overview" class="rail-brand-link" title="RACK//PANEL">
+          <div class="rail-brand">
+            <img src="/logo.jpg" alt="RACK//PANEL" class="rail-brand-logo" />
+          </div>
+          <div class="rail-brand-meta">
+            <span class="rail-brand-name mono">RACK<span style="color: #22d3ee;">//</span>PANEL</span>
+            <span class="rail-brand-tag mono">INFRASTRUCTURE</span>
+          </div>
+        </router-link>
+        <button
+          type="button"
+          class="rail-collapse-btn"
+          :title="sidebarCompact ? 'Expand sidebar' : 'Compact icon-only sidebar'"
+          @click="toggleSidebarCompact"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline v-if="sidebarCompact" points="9 18 15 12 9 6" />
+            <polyline v-else points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      </div>
 
       <nav class="rail-nav-list">
-        <router-link to="/overview" class="rail-btn" active-class="active">
+        <router-link to="/overview" class="rail-btn" active-class="active" title="Overview">
           <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7" rx="1.5" />
             <rect x="14" y="3" width="7" height="7" rx="1.5" />
@@ -31,23 +50,25 @@
         <div class="rail-devices-group">
           <button
             type="button"
-            class="rail-btn"
+            class="rail-btn rail-btn-group"
+            title="Devices"
             :class="{ active: isDevicesRoute || devicesMenuOpen }"
             @click="devicesMenuOpen = !devicesMenuOpen"
           >
-            <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="7" rx="1.5" />
-              <rect x="2" y="14" width="20" height="7" rx="1.5" />
-              <circle cx="6" cy="6.5" r="1" fill="currentColor" />
-              <circle cx="6" cy="17.5" r="1" fill="currentColor" />
-            </svg>
-            <span class="rail-btn-label">
-              Devices {{ devicesMenuOpen ? '▾' : '▸' }}
+            <span class="rail-btn-inner">
+              <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="7" rx="1.5" />
+                <rect x="2" y="14" width="20" height="7" rx="1.5" />
+                <circle cx="6" cy="6.5" r="1" fill="currentColor" />
+                <circle cx="6" cy="17.5" r="1" fill="currentColor" />
+              </svg>
+              <span class="rail-btn-label">Devices</span>
             </span>
+            <span class="rail-chevron mono">{{ devicesMenuOpen ? '▾' : '▸' }}</span>
           </button>
 
           <div v-if="devicesMenuOpen" class="rail-submenu">
-            <router-link to="/servers" class="rail-sub-btn" active-class="active">
+            <router-link to="/servers" class="rail-sub-btn" active-class="active" title="Servers">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="6" rx="1.5" />
                 <rect x="3" y="14" width="18" height="6" rx="1.5" />
@@ -57,7 +78,7 @@
               <span class="rail-sub-label">Servers</span>
             </router-link>
 
-            <router-link to="/proxmox" class="rail-sub-btn" active-class="active">
+            <router-link to="/proxmox" class="rail-sub-btn" active-class="active" title="Proxmox">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2" />
                 <line x1="12" y1="22" x2="12" y2="12" />
@@ -66,7 +87,7 @@
               <span class="rail-sub-label">Proxmox</span>
             </router-link>
 
-            <router-link to="/docker" class="rail-sub-btn" active-class="active">
+            <router-link to="/docker" class="rail-sub-btn" active-class="active" title="Docker">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="10" width="5" height="5" rx="0.8" />
                 <rect x="9.5" y="10" width="5" height="5" rx="0.8" />
@@ -77,7 +98,7 @@
               <span class="rail-sub-label">Docker</span>
             </router-link>
 
-            <router-link to="/opnsense" class="rail-sub-btn" active-class="active">
+            <router-link to="/opnsense" class="rail-sub-btn" active-class="active" title="OPNsense">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 <polyline points="9 12 11 14 15 10" />
@@ -85,7 +106,7 @@
               <span class="rail-sub-label">OPNsense</span>
             </router-link>
 
-            <router-link to="/switches" class="rail-sub-btn" active-class="active">
+            <router-link to="/switches" class="rail-sub-btn" active-class="active" title="Switches">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="2" y="6" width="20" height="12" rx="2" />
                 <circle cx="6" cy="10" r="1" fill="currentColor" />
@@ -99,7 +120,7 @@
               <span class="rail-sub-label">Switches</span>
             </router-link>
 
-            <router-link to="/hikvision" class="rail-sub-btn" active-class="active">
+            <router-link to="/hikvision" class="rail-sub-btn" active-class="active" title="Cameras">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M23 7l-7 5 7 5V7z" />
                 <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
@@ -107,7 +128,7 @@
               <span class="rail-sub-label">Cameras</span>
             </router-link>
 
-            <router-link to="/unifi" class="rail-sub-btn" active-class="active">
+            <router-link to="/unifi" class="rail-sub-btn" active-class="active" title="UniFi">
               <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M5 12.55a11 11 0 0 1 14.08 0" />
                 <path d="M1.42 9a16 16 0 0 1 21.16 0" />
@@ -116,10 +137,18 @@
               </svg>
               <span class="rail-sub-label">UniFi</span>
             </router-link>
+
+            <router-link to="/ups" class="rail-sub-btn" active-class="active" title="UPS">
+              <svg class="rail-sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M13 8l-3 5h4l-1 4" />
+              </svg>
+              <span class="rail-sub-label">UPS</span>
+            </router-link>
           </div>
         </div>
 
-        <router-link to="/topology" class="rail-btn" active-class="active">
+        <router-link to="/topology" class="rail-btn" active-class="active" title="Topology">
           <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="6" cy="6" r="3" />
             <circle cx="18" cy="6" r="3" />
@@ -131,7 +160,7 @@
           <span class="rail-btn-label">Topology</span>
         </router-link>
 
-        <router-link to="/tailscale" class="rail-btn" active-class="active">
+        <router-link to="/tailscale" class="rail-btn" active-class="active" title="Tailscale">
           <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="5" r="2.1" opacity="0.4" />
             <circle cx="12" cy="5" r="2.1" opacity="0.4" />
@@ -146,7 +175,7 @@
           <span class="rail-btn-label">Tailscale</span>
         </router-link>
 
-        <router-link to="/settings" class="rail-btn" active-class="active">
+        <router-link to="/settings" class="rail-btn" active-class="active" title="Settings">
           <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -158,25 +187,25 @@
       <div class="rail-footer">
         <button
           type="button"
-          class="rail-btn"
-          style="min-height: 48px; margin-bottom: 6px;"
+          class="rail-footer-btn"
+          :title="effectiveSettings.splashPinEnabled && effectiveSettings.hasSplashPin ? 'Lock' : 'Splash'"
           @click="enterIdleSplash"
         >
-          <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="rail-footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="3" width="20" height="14" rx="2" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
-          <span class="rail-btn-label">{{ effectiveSettings.splashPinEnabled && effectiveSettings.hasSplashPin ? 'Lock' : 'Splash' }}</span>
+          <span class="rail-footer-label">{{ effectiveSettings.splashPinEnabled && effectiveSettings.hasSplashPin ? 'Lock' : 'Splash' }}</span>
         </button>
-        <button type="button" class="rail-btn" style="min-height: 48px; margin-bottom: 0;" @click="toggleFullscreen">
-          <svg class="rail-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button type="button" class="rail-footer-btn" title="Kiosk" @click="toggleFullscreen">
+          <svg class="rail-footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 3 21 3 21 9" />
             <polyline points="9 21 3 21 3 15" />
             <line x1="21" y1="3" x2="14" y2="10" />
             <line x1="3" y1="21" x2="10" y2="14" />
           </svg>
-          <span class="rail-btn-label">Kiosk</span>
+          <span class="rail-footer-label">Kiosk</span>
         </button>
       </div>
     </aside>
@@ -305,6 +334,8 @@
             @add-unifi="openAddUnifi"
             @edit-unifi="openEditUnifi"
             @delete-unifi="confirmDeleteUnifi"
+            @add-ups="openAddUps"
+            @edit-ups="openEditUps"
             @import-ssh="importTailscaleAsSsh"
             @import-proxmox="importTailscaleAsProxmox"
             @refresh="loadData"
@@ -362,6 +393,15 @@
       @saved="onConnectionSaved('UniFi controller saved')"
     />
 
+    <UpsModal
+      :open="upsModalOpen"
+      :edit-config="editingUps"
+      @close="upsModalOpen = false"
+      @saved="onConnectionSaved('UPS configuration saved')"
+      @open-settings="upsModalOpen = false; navigateToTab('settings')"
+      @toast="showToast"
+    />
+
     <ConfirmModal
       :open="Boolean(deleteTarget)"
       :title="deleteTarget ? `Remove ${deleteTarget.name}` : ''"
@@ -413,6 +453,7 @@ import type {
   TailscaleConfigPublic,
   TailscaleDevice,
   UnifiConfigPublic,
+  UpsConfigPublic,
 } from '@shared/types';
 import router, { getSavedLastRoute } from '@/router';
 import { api } from '@/api/client';
@@ -425,6 +466,7 @@ import TailscaleModal from '@/components/TailscaleModal.vue';
 import OpnsenseModal from '@/components/OpnsenseModal.vue';
 import HikvisionModal from '@/components/HikvisionModal.vue';
 import UnifiModal from '@/components/UnifiModal.vue';
+import UpsModal from '@/components/UpsModal.vue';
 import TerminalModal, { type TerminalTarget } from '@/components/TerminalModal.vue';
 import VncModal, { type VncTarget } from '@/components/VncModal.vue';
 import IdleSplashScreen from '@/components/IdleSplashScreen.vue';
@@ -440,13 +482,14 @@ export default defineComponent({
     OpnsenseModal,
     HikvisionModal,
     UnifiModal,
+    UpsModal,
     TerminalModal,
     VncModal,
     IdleSplashScreen,
     ConfirmModal,
   },
   setup() {
-    type MainTab = 'overview' | 'servers' | 'proxmox' | 'docker' | 'opnsense' | 'switches' | 'hikvision' | 'unifi' | 'topology' | 'tailscale' | 'settings';
+    type MainTab = 'overview' | 'servers' | 'proxmox' | 'docker' | 'opnsense' | 'switches' | 'hikvision' | 'unifi' | 'ups' | 'topology' | 'tailscale' | 'settings';
     type PveSubTab = 'nodes' | 'guests' | 'storage' | 'tasks';
     type OpnSubTab = 'overview' | 'interfaces' | 'services' | 'firewall';
     type SwSubTab = 'overview' | 'ports' | 'neighbors' | 'services';
@@ -462,6 +505,7 @@ export default defineComponent({
       'switches',
       'hikvision',
       'unifi',
+      'ups',
       'topology',
       'tailscale',
       'settings',
@@ -486,9 +530,20 @@ export default defineComponent({
       return VALID_TABS.indexOf(name) !== -1 ? name : 'overview';
     });
 
-    const DEVICE_TABS: MainTab[] = ['servers', 'proxmox', 'docker', 'opnsense', 'switches', 'hikvision', 'unifi'];
+    const DEVICE_TABS: MainTab[] = ['servers', 'proxmox', 'docker', 'opnsense', 'switches', 'hikvision', 'unifi', 'ups'];
     const isDevicesRoute = computed<boolean>(() => DEVICE_TABS.indexOf(activeTab.value) !== -1);
     const devicesMenuOpen = ref<boolean>(isDevicesRoute.value);
+    const sidebarCompact = ref<boolean>(
+      typeof window !== 'undefined' && window.localStorage.getItem('rackpanel:sidebarCompact') === '1',
+    );
+    function toggleSidebarCompact() {
+      sidebarCompact.value = !sidebarCompact.value;
+      try {
+        window.localStorage.setItem('rackpanel:sidebarCompact', sidebarCompact.value ? '1' : '0');
+      } catch {
+        // ignore storage errors
+      }
+    }
     watch(isDevicesRoute, (inDevices) => {
       if (inDevices) devicesMenuOpen.value = true;
     });
@@ -526,8 +581,8 @@ export default defineComponent({
     });
 
     const topologySubTab = computed<TopoSubTab>(() => {
-      const sub = String(vm.$route.params.subTab || 'racks') as TopoSubTab;
-      return vm.$route.name === 'topology' && VALID_TOPO_TABS.indexOf(sub) !== -1 ? sub : 'racks';
+      const sub = String(vm.$route.params.subTab || 'canvas') as TopoSubTab;
+      return vm.$route.name === 'topology' && VALID_TOPO_TABS.indexOf(sub) !== -1 ? sub : 'canvas';
     });
 
     const overview = ref<OverviewResponse | null>(null);
@@ -741,6 +796,8 @@ export default defineComponent({
     const editingHikvision = ref<HikvisionConfigPublic | null>(null);
     const unifiModalOpen = ref(false);
     const editingUnifi = ref<UnifiConfigPublic | null>(null);
+    const upsModalOpen = ref(false);
+    const editingUps = ref<UpsConfigPublic | null>(null);
     const terminalTarget = ref<TerminalTarget | null>(null);
     const vncTarget = ref<VncTarget | null>(null);
     const deleteTarget = ref<{
@@ -1013,6 +1070,16 @@ export default defineComponent({
       unifiModalOpen.value = true;
     }
 
+    function openAddUps() {
+      editingUps.value = null;
+      upsModalOpen.value = true;
+    }
+
+    function openEditUps(u: UpsConfigPublic) {
+      editingUps.value = u;
+      upsModalOpen.value = true;
+    }
+
     function importTailscaleAsSsh(device: TailscaleDevice) {
       editingServer.value = null;
       serverPrefill.value = {
@@ -1153,6 +1220,8 @@ export default defineComponent({
       activeTab,
       isDevicesRoute,
       devicesMenuOpen,
+      sidebarCompact,
+      toggleSidebarCompact,
       routeProps,
       navigateToTab,
       onSubTabChange,
@@ -1191,6 +1260,8 @@ export default defineComponent({
       editingHikvision,
       unifiModalOpen,
       editingUnifi,
+      upsModalOpen,
+      editingUps,
       terminalTarget,
       vncTarget,
       deleteTarget,
@@ -1210,6 +1281,8 @@ export default defineComponent({
       openEditHikvision,
       openAddUnifi,
       openEditUnifi,
+      openAddUps,
+      openEditUps,
       importTailscaleAsSsh,
       importTailscaleAsProxmox,
       confirmDeleteServer,

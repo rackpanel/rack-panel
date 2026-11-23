@@ -52,7 +52,7 @@
 import { computed, defineComponent, ref, watch, type PropType } from 'vue';
 import { api } from '@/api/client';
 
-export type ScanKind = 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi';
+export type ScanKind = 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi' | 'ups';
 
 export interface ScannedDevicePick {
   host: string;
@@ -102,6 +102,8 @@ export default defineComponent({
           return 'Hikvision NVR / Camera';
         case 'unifi':
           return 'UniFi Controller / Device';
+        case 'ups':
+          return 'SNMP / NUT UPS';
         default:
           return 'SSH Server';
       }

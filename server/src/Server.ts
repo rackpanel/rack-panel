@@ -9,6 +9,7 @@ import { AuthController } from './controllers/AuthController.js';
 import { FleetController } from './controllers/FleetController.js';
 import { TopologyController } from './controllers/TopologyController.js';
 import { AuthMiddleware } from './middlewares/AuthMiddleware.js';
+import { getOrCreateTeslaPartnerPublicKeyPem } from './services/upsClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +45,10 @@ export class Server {
   ) {}
 
   $afterRoutesInit(): void {
+    this.app.get('/.well-known/appspecific/com.tesla.3p.public-key.pem', (_req: express.Request, res: express.Response) => {
+      res.type('application/x-pem-file').send(getOrCreateTeslaPartnerPublicKeyPem());
+    });
+
     if (clientDist) {
       this.app.get('*', (req: express.Request, res: express.Response, next: express.NextFunction) => {
         if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {

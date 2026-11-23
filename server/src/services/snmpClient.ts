@@ -195,11 +195,12 @@ function snmpRequest(
   oid: string,
   pduType: number,
   timeoutMs = 1800,
+  version = 1,
 ): Promise<SnmpVarBind | null> {
   return new Promise((resolve) => {
     const socket = dgram.createSocket('udp4');
     const reqId = Math.floor(Math.random() * 0x7fffffff);
-    const pkt = buildSnmpPacket(pduType, reqId, community, oid, 1);
+    const pkt = buildSnmpPacket(pduType, reqId, community, oid, version);
     let settled = false;
 
     const done = (val: SnmpVarBind | null) => {
@@ -239,8 +240,15 @@ function snmpRequest(
   });
 }
 
-export function snmpGet(host: string, community: string, oid: string, port = 161): Promise<SnmpVarBind | null> {
-  return snmpRequest(host, port, community, oid, 0xa0);
+export function snmpGet(
+  host: string,
+  community: string,
+  oid: string,
+  port = 161,
+  timeoutMs = 1800,
+  version = 1,
+): Promise<SnmpVarBind | null> {
+  return snmpRequest(host, port, community, oid, 0xa0, timeoutMs, version);
 }
 
 export async function snmpWalk(

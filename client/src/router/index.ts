@@ -6,6 +6,7 @@ import OverviewView from '@/views/OverviewView.vue';
 import ServersView from '@/views/ServersView.vue';
 import ProxmoxView from '@/views/ProxmoxView.vue';
 import DockerView from '@/views/DockerView.vue';
+import UpsView from '@/views/UpsView.vue';
 import OpnsenseView from '@/views/OpnsenseView.vue';
 import SwitchesView from '@/views/SwitchesView.vue';
 import HikvisionView from '@/views/HikvisionView.vue';
@@ -118,6 +119,12 @@ const routes: RouteConfig[] = [
     name: 'unifi',
     component: UnifiView,
     meta: { requiresAuth: true, tab: 'unifi' },
+  },
+  {
+    path: '/ups',
+    name: 'ups',
+    component: UpsView,
+    meta: { requiresAuth: true, tab: 'ups' },
   },
   {
     path: '/topology/:subTab?',

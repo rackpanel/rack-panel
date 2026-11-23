@@ -45,69 +45,134 @@
         <div v-if="overview.alerts.length > 0" class="splash-alert-strip">
           <span class="dot dot-crit pulse"></span>
           <strong>[{{ overview.alerts[0].source }}]</strong>&nbsp;{{ overview.alerts[0].message }}
+          <span v-if="overview.alerts.length > 1" class="mono splash-alert-more">
+            +{{ overview.alerts.length - 1 }} MORE
+          </span>
         </div>
 
-        <!-- Centerpiece Core Gauges -->
-        <div class="splash-gauges-row">
-          <div class="splash-gauge-card">
-            <RadialGauge :value="summary.avgCpuPercent" :size="146" :stroke-width="12" label="FLEET CPU" />
-            <div class="splash-gauge-caption mono">
-              {{ summary.onlineServers }}/{{ summary.totalServers }} SSH &middot;
-              {{ summary.onlineProxmoxNodes }}/{{ summary.totalProxmoxNodes }} PVE
+        <!-- Bento Main Telemetry Grid -->
+        <div class="splash-bento">
+          <!-- Compute / Memory / Storage Gauges -->
+          <div class="splash-panel splash-gauges-panel">
+            <div class="splash-panel-head mono">COMPUTE &amp; STORAGE TELEMETRY</div>
+            <div class="splash-gauges-row">
+              <div class="splash-gauge-card">
+                <RadialGauge :value="summary.avgCpuPercent" :size="126" :stroke-width="11" label="FLEET CPU" />
+                <div class="splash-gauge-caption mono">
+                  {{ summary.onlineServers }}/{{ summary.totalServers }} SSH &middot;
+                  {{ summary.onlineProxmoxNodes }}/{{ summary.totalProxmoxNodes }} PVE
+                </div>
+              </div>
+
+              <div class="splash-gauge-card">
+                <RadialGauge
+                  :value="fleetMemPercent"
+                  :size="126"
+                  :stroke-width="11"
+                  label="FLEET RAM"
+                  color="#a78bfa"
+                />
+                <div class="splash-gauge-caption mono">
+                  {{ formatBytes(summary.totalMemUsedBytes) }} / {{ formatBytes(summary.totalMemBytes) }}
+                </div>
+              </div>
+
+              <div class="splash-gauge-card">
+                <RadialGauge
+                  :value="fleetStoragePercent"
+                  :size="126"
+                  :stroke-width="11"
+                  label="STORAGE"
+                  color="#34d399"
+                />
+                <div class="splash-gauge-caption mono">
+                  {{ formatBytes(summary.totalStorageUsedBytes) }} / {{ formatBytes(summary.totalStorageBytes) }}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="splash-gauge-card">
-            <RadialGauge
-              :value="fleetMemPercent"
-              :size="146"
-              :stroke-width="12"
-              label="FLEET RAM"
-              color="#a78bfa"
-            />
-            <div class="splash-gauge-caption mono">
-              {{ formatBytes(summary.totalMemUsedBytes) }} / {{ formatBytes(summary.totalMemBytes) }}
+          <!-- Power & UPS / Tesla Powerwall Telemetry -->
+          <div class="splash-panel splash-power-panel">
+            <div class="splash-panel-head mono">
+              <span>POWER &amp; ENERGY</span>
+              <span class="pill" :class="powerSummary.onBattery ? 'pill-warn' : 'pill-ok'">
+                {{ powerSummary.count === 0 ? 'NO UPS' : powerSummary.onBattery ? 'ON BATTERY' : 'LINE OK' }}
+              </span>
             </div>
-          </div>
-
-          <div class="splash-gauge-card">
-            <RadialGauge
-              :value="fleetStoragePercent"
-              :size="146"
-              :stroke-width="12"
-              label="STORAGE"
-              color="#34d399"
-            />
-            <div class="splash-gauge-caption mono">
-              {{ formatBytes(summary.totalStorageUsedBytes) }} / {{ formatBytes(summary.totalStorageBytes) }}
+            <div v-if="powerSummary.count === 0" class="splash-power-empty mono">
+              Add a UPS or Tesla Powerwall to monitor live load, battery SoC, and solar flow.
+            </div>
+            <div v-else class="splash-power-body">
+              <div class="splash-power-stats">
+                <div class="splash-power-stat">
+                  <div class="splash-kpi-label">BATTERY SoC</div>
+                  <div class="splash-kpi-val mono" style="color: #34d399;">
+                    {{ powerSummary.avgBattery !== null ? `${Math.round(powerSummary.avgBattery)}%` : '—' }}
+                  </div>
+                </div>
+                <div class="splash-power-stat">
+                  <div class="splash-kpi-label">TOTAL LOAD</div>
+                  <div class="splash-kpi-val mono" style="color: #22d3ee;">
+                    {{ powerSummary.totalLoadW !== null ? `${Math.round(powerSummary.totalLoadW)}W` : '—' }}
+                  </div>
+                </div>
+                <div v-if="powerSummary.totalSolarW !== null" class="splash-power-stat">
+                  <div class="splash-kpi-label">SOLAR GEN</div>
+                  <div class="splash-kpi-val mono" style="color: #fbbf24;">
+                    {{ Math.round(powerSummary.totalSolarW) }}W
+                  </div>
+                </div>
+              </div>
+              <div class="splash-power-list">
+                <div v-for="u in powerSummary.items" :key="u.id" class="splash-power-item mono">
+                  <span class="dot" :class="u.online ? 'dot-ok' : 'dot-crit'"></span>
+                  <span class="splash-power-name">{{ u.name }}</span>
+                  <span class="splash-power-meta">
+                    {{ u.battery !== null ? `${Math.round(u.battery)}%` : '' }}
+                    <template v-if="u.loadW !== null">&middot; {{ Math.round(u.loadW) }}W</template>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Secondary Telemetry Counters -->
+        <!-- Secondary Subsystem KPI Tiles -->
         <div class="splash-kpis">
           <div class="splash-kpi-tile">
-            <div class="splash-kpi-label">NETWORK RX</div>
-            <div class="splash-kpi-val mono" style="color: #34d399;">
-              &darr; {{ formatBps(summary.totalNetRxBps) }}
+            <div class="splash-kpi-label">NETWORK RX / TX</div>
+            <div class="splash-kpi-val mono" style="font-size: 16px;">
+              <span style="color: #34d399;">&darr; {{ formatBps(summary.totalNetRxBps) }}</span>
+              <span class="splash-kpi-dim"> / </span>
+              <span style="color: #22d3ee;">&uarr; {{ formatBps(summary.totalNetTxBps) }}</span>
             </div>
           </div>
           <div class="splash-kpi-tile">
-            <div class="splash-kpi-label">NETWORK TX</div>
-            <div class="splash-kpi-val mono" style="color: #22d3ee;">
-              &uarr; {{ formatBps(summary.totalNetTxBps) }}
+            <div class="splash-kpi-label">PROXMOX VMs / LXCs</div>
+            <div class="splash-kpi-val mono">
+              <span style="color: #22d3ee;">{{ summary.runningVms }}</span><span class="splash-kpi-dim">/{{ summary.totalVms }}</span>
+              <span class="splash-kpi-dim"> &middot; </span>
+              <span style="color: #a78bfa;">{{ summary.runningLxcs }}</span><span class="splash-kpi-dim">/{{ summary.totalLxcs }}</span>
             </div>
           </div>
-          <div class="splash-kpi-tile">
-            <div class="splash-kpi-label">PROXMOX VMs</div>
-            <div class="splash-kpi-val mono" style="color: #22d3ee;">
-              {{ summary.runningVms }} <span class="splash-kpi-dim">/ {{ summary.totalVms }}</span>
+          <div v-if="unifiStats.total > 0" class="splash-kpi-tile">
+            <div class="splash-kpi-label">UNIFI NETWORK</div>
+            <div class="splash-kpi-val mono" style="color: #38bdf8;">
+              {{ unifiStats.devicesOnline }}/{{ unifiStats.devicesTotal }} DEV
+              <span class="splash-kpi-dim">&middot; {{ unifiStats.clients }} CLI</span>
             </div>
           </div>
-          <div class="splash-kpi-tile">
-            <div class="splash-kpi-label">LXC CONTAINERS</div>
-            <div class="splash-kpi-val mono" style="color: #a78bfa;">
-              {{ summary.runningLxcs }} <span class="splash-kpi-dim">/ {{ summary.totalLxcs }}</span>
+          <div v-if="summary.opnsenseTotal > 0" class="splash-kpi-tile">
+            <div class="splash-kpi-label">OPNSENSE GATEWAYS</div>
+            <div class="splash-kpi-val mono" style="color: #fb923c;">
+              {{ summary.opnsenseGatewaysOnline }} <span class="splash-kpi-dim">/ {{ summary.opnsenseGatewaysTotal }}</span>
+            </div>
+          </div>
+          <div v-if="summary.hikvisionTotal > 0" class="splash-kpi-tile">
+            <div class="splash-kpi-label">HIKVISION CAMERAS</div>
+            <div class="splash-kpi-val mono" style="color: #f472b6;">
+              {{ summary.hikvisionCamerasOnline }} <span class="splash-kpi-dim">/ {{ summary.hikvisionCamerasTotal }}</span>
             </div>
           </div>
           <div v-if="summary.tailscaleTotalDevices > 0" class="splash-kpi-tile">
@@ -535,6 +600,69 @@ export default defineComponent({
       return list.slice(0, 6);
     });
 
+    const powerSummary = computed(() => {
+      const upsList = props.overview?.ups || [];
+      let batterySum = 0;
+      let batteryCount = 0;
+      let loadSum = 0;
+      let loadCount = 0;
+      let solarSum = 0;
+      let solarCount = 0;
+      let onBattery = false;
+
+      const items = upsList.slice(0, 3).map((u) => {
+        if (u.batteryChargePercent !== null && u.batteryChargePercent !== undefined) {
+          batterySum += u.batteryChargePercent;
+          batteryCount += 1;
+        }
+        if (u.outputWatts !== null && u.outputWatts !== undefined) {
+          loadSum += u.outputWatts;
+          loadCount += 1;
+        }
+        if (u.solarWatts !== null && u.solarWatts !== undefined) {
+          solarSum += u.solarWatts;
+          solarCount += 1;
+        }
+        if (u.status === 'on-battery' || u.status === 'low-battery' || u.outputSource === 'battery') {
+          onBattery = true;
+        }
+        return {
+          id: u.configId,
+          name: u.name,
+          online: u.status === 'online',
+          battery: u.batteryChargePercent,
+          loadW: u.outputWatts,
+        };
+      });
+
+      return {
+        count: upsList.length,
+        onBattery,
+        avgBattery: batteryCount > 0 ? batterySum / batteryCount : null,
+        totalLoadW: loadCount > 0 ? loadSum : null,
+        totalSolarW: solarCount > 0 ? solarSum : null,
+        items,
+      };
+    });
+
+    const unifiStats = computed(() => {
+      const list = props.overview?.unifi || [];
+      let devicesOnline = 0;
+      let devicesTotal = 0;
+      let clients = 0;
+      for (const u of list) {
+        devicesOnline += u.onlineDevices;
+        devicesTotal += u.totalDevices;
+        clients += u.totalClients;
+      }
+      return {
+        total: list.length,
+        devicesOnline,
+        devicesTotal,
+        clients,
+      };
+    });
+
     return {
       nudgeStyle,
       dateStr,
@@ -543,6 +671,8 @@ export default defineComponent({
       fleetMemPercent,
       fleetStoragePercent,
       hostPills,
+      powerSummary,
+      unifiStats,
       pinRequired,
       pinPadOpen,
       pinDigits,
@@ -651,13 +781,107 @@ export default defineComponent({
   align-items: center;
 }
 
+.splash-alert-more {
+  margin-left: auto;
+  font-size: 11px;
+  color: #fca5a5;
+}
+
+.splash-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.splash-panel {
+  border-radius: 8px;
+  background: rgba(13, 19, 32, 0.85);
+  border: 1px solid #1d283d;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.splash-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.splash-power-empty {
+  font-size: 12px;
+  color: #64748b;
+  padding: 18px 0;
+}
+
+.splash-power-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.splash-power-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.splash-power-stat {
+  flex: 1;
+  min-width: 78px;
+}
+
+.splash-power-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.splash-power-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #0a0f1a;
+  border: 1px solid #1a2438;
+}
+
+.splash-power-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.splash-power-meta {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .splash-bento {
+    grid-template-columns: 1fr;
+  }
+}
+
 .splash-gauges-row {
   display: flex;
   flex-direction: row;
   justify-content: space-around;
   align-items: center;
   flex-wrap: wrap;
-  padding: 14px 0;
+  padding: 6px 0;
 }
 
 .splash-gauge-card {

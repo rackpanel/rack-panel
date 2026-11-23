@@ -10,7 +10,7 @@ import { snmpGet, snmpValToString } from './snmpClient.js';
 
 const execFileAsync = promisify(execFile);
 
-export type AutoScanDeviceKind = 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi';
+export type AutoScanDeviceKind = 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi' | 'ups';
 
 export interface AutoScannedDevice {
   host: string;
@@ -853,6 +853,69 @@ export async function autoScanDevices(
         unifiDeviceType: devType,
         confidence: 'high',
       });
+    });
+  } else if (kind === 'ups') {
+    await runBatched(allIps, 64, async (ip) => {
+      const hasNut = await probeTcpPort(ip, 3493, 250);
+      if (hasNut) {
+        devices.push({
+          host: ip,
+          port: 3493,
+          protocol: 'nut',
+          name: `NUT UPS Server (${ip})`,
+          detail: 'Network UPS Tools daemon (:3493)',
+          mac: arpMap.get(ip),
+          confidence: 'high',
+        });
+        return;
+      }
+
+      const has443 = await probeTcpPort(ip, 443, 250);
+      if (has443) {
+        const pwMeta = await fetchHttpMeta(ip, 443, true, '/api/status', 900);
+        if (pwMeta && /\b(teg|powerwall|tesla)\b/i.test(pwMeta.body)) {
+          devices.push({
+            host: ip,
+            port: 443,
+            protocol: 'powerwall',
+            name: `Tesla Powerwall (${ip})`,
+            detail: 'Tesla Energy Gateway Local API (:443)',
+            mac: arpMap.get(ip),
+            vendor: 'Tesla Energy',
+            confidence: 'high',
+          });
+          return;
+        }
+      }
+
+      // Probe SNMP :161 for RFC 1628 UPS-MIB / IBM / Eaton / APC (v2c and v1)
+      const [mfrVb, modelVb, sysDescrVb] = await Promise.all([
+        snmpGet(ip, 'public', '1.3.6.1.2.1.33.1.1.1.0', 161, 450, 1).then(
+          (r) => r || snmpGet(ip, 'public', '1.3.6.1.2.1.33.1.1.1.0', 161, 450, 0),
+        ),
+        snmpGet(ip, 'public', '1.3.6.1.2.1.33.1.1.2.0', 161, 450, 1).then(
+          (r) => r || snmpGet(ip, 'public', '1.3.6.1.2.1.33.1.1.2.0', 161, 450, 0),
+        ),
+        snmpGet(ip, 'public', '1.3.6.1.2.1.1.1.0', 161, 450, 1).then(
+          (r) => r || snmpGet(ip, 'public', '1.3.6.1.2.1.1.1.0', 161, 450, 0),
+        ),
+      ]);
+      const mfr = mfrVb?.value ? snmpValToString(mfrVb.value).trim() : '';
+      const model = modelVb?.value ? snmpValToString(modelVb.value).trim() : '';
+      const descr = sysDescrVb?.value ? snmpValToString(sysDescrVb.value).trim() : '';
+      const combined = `${mfr} ${model} ${descr}`;
+      if (mfr || model || /\b(ups|ibm|eaton|apc|powerware|cyberpower|tripp|smart-ups)\b/i.test(combined)) {
+        devices.push({
+          host: ip,
+          port: 161,
+          protocol: 'snmp',
+          name: [mfr, model].filter(Boolean).join(' ') || `SNMP UPS (${ip})`,
+          detail: `SNMP UPS${descr ? ` · ${descr.slice(0, 48)}` : ''}`,
+          mac: arpMap.get(ip),
+          vendor: mfr || undefined,
+          confidence: 'high',
+        });
+      }
     });
   }
 

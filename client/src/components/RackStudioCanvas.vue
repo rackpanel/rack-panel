@@ -965,7 +965,7 @@
                   <rect
                     :x="m.x + 22"
                     :y="m.y + m.h - 19"
-                    width="64"
+                    :width="/ibm|3000|2700|hv/i.test(m.item.name) ? 104 : 64"
                     height="13"
                     rx="1.5"
                     fill="#064e3b"
@@ -973,7 +973,7 @@
                     stroke-width="0.9"
                   />
                   <text
-                    :x="m.x + 54"
+                    :x="m.x + (/ibm|3000|2700|hv/i.test(m.item.name) ? 74 : 54)"
                     :y="m.y + m.h - 9.5"
                     text-anchor="middle"
                     fill="#6ee7b7"
@@ -981,7 +981,7 @@
                     font-size="8.5"
                     font-weight="700"
                   >
-                    100% · OK
+                    {{ /ibm|3000|2700|hv/i.test(m.item.name) ? '230V · 3000VA · OK' : '100% · OK' }}
                   </text>
                 </g>
 
@@ -1370,6 +1370,7 @@ export default defineComponent({
       { label: 'Patch panel 24-Port', tag: '24P', kind: 'patch-panel', name: 'patch-24p', heightU: 1, portCount: 24 },
       { label: 'Fiber LC Duplex 1U', tag: 'LC', kind: 'fiber-patch', name: 'fiber-lc', heightU: 1, portCount: 8 },
       { label: 'Rack PDU 8-Outlet', tag: 'PDU', kind: 'pdu', name: 'pdu-1u', heightU: 1, portCount: 0 },
+      { label: 'IBM 3000VA/2700W HV UPS', tag: '2U UPS', kind: 'ups', name: 'IBM 3000VA/2700W Rack HV UPS', heightU: 2, portCount: 0 },
     ];
 
     const probingSwitch = ref(false);

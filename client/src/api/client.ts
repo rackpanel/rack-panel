@@ -30,6 +30,8 @@ import type {
   SshServerPublic,
   UnifiConfig,
   UnifiConfigPublic,
+  UpsConfig,
+  UpsConfigPublic,
   TailscaleActionResult,
   TailscaleConfig,
   TailscaleConfigPublic,
@@ -141,6 +143,10 @@ export const api = {
 
   triggerPoll(): Promise<OverviewResponse> {
     return requestJson<OverviewResponse>('/api/poll', { method: 'POST' });
+  },
+
+  getSettings(): Promise<PanelSettings> {
+    return requestJson<PanelSettings>('/api/settings');
   },
 
   updateSettings(patch: Partial<PanelSettings> & { splashPin?: string }): Promise<PanelSettings> {
@@ -321,6 +327,77 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ target }),
     });
+  },
+
+  // UPS / Power
+  listUps(): Promise<UpsConfigPublic[]> {
+    return requestJson<UpsConfigPublic[]>('/api/ups');
+  },
+
+  testUps(payload: Partial<UpsConfig>): Promise<ConnectionTestResult> {
+    return requestJson<ConnectionTestResult>('/api/ups/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  createUps(payload: Partial<UpsConfig> & { name: string; host: string }): Promise<UpsConfigPublic> {
+    return requestJson<UpsConfigPublic>('/api/ups', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateUps(id: string, payload: Partial<UpsConfig> & { name: string; host: string }): Promise<UpsConfigPublic> {
+    return requestJson<UpsConfigPublic>('/api/ups', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, id }),
+    });
+  },
+
+  deleteUps(id: string): Promise<{ deleted: boolean }> {
+    return requestJson<{ deleted: boolean }>(`/api/ups/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  startTeslaPowerwallAuth(clientId?: string, redirectUri?: string): Promise<{ authUrl: string; state: string }> {
+    return requestJson<{ authUrl: string; state: string }>('/api/ups/tesla-auth/start', {
+      method: 'POST',
+      body: JSON.stringify({ clientId, redirectUri }),
+    });
+  },
+
+  exchangeTeslaPowerwallAuth(
+    callbackUrl: string,
+    state?: string,
+  ): Promise<{ ok: boolean; accessToken: string; refreshToken: string; expiresIn: number; isFleetApi?: boolean }> {
+    return requestJson<{ ok: boolean; accessToken: string; refreshToken: string; expiresIn: number; isFleetApi?: boolean }>(
+      '/api/ups/tesla-auth/exchange',
+      {
+        method: 'POST',
+        body: JSON.stringify({ callbackUrl, state }),
+      },
+    );
+  },
+
+  getTeslaPartnerPublicKey(): Promise<{ publicKeyPem: string }> {
+    return requestJson<{ publicKeyPem: string }>('/api/ups/tesla-auth/public-key');
+  },
+
+  registerTeslaPartnerAccount(payload: {
+    clientId: string;
+    clientSecret: string;
+    domain: string;
+    regionHost?: string;
+  }): Promise<{ ok: boolean; message: string; publicKeyPem: string }> {
+    return requestJson<{ ok: boolean; message: string; publicKeyPem: string }>(
+      '/api/ups/tesla-auth/register-partner',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
   },
 
   // Tailscale
@@ -713,7 +790,7 @@ export const api = {
   },
 
   autoScanDevices(
-    kind: 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi',
+    kind: 'server' | 'proxmox' | 'opnsense' | 'switch' | 'hikvision' | 'unifi' | 'ups',
     subnet?: string,
   ): Promise<{
     ok: boolean;

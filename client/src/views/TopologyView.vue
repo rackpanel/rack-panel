@@ -1873,10 +1873,10 @@ export default defineComponent({
   components: { UiDialog, UiButton, RackStudioCanvas, DeviceIconSvg },
   props: {
     overview: { type: Object as () => OverviewResponse | null, default: null },
-    initialSubTab: { type: String as () => TopologySubTab, default: 'racks' },
+    initialSubTab: { type: String as () => TopologySubTab, default: 'canvas' },
   },
   setup(props, { emit }) {
-    const activeSubTab = ref<TopologySubTab>(props.initialSubTab || 'racks');
+    const activeSubTab = ref<TopologySubTab>(props.initialSubTab || 'canvas');
     const state = ref<TopologyState>({
       canvases: [],
       nodes: [],
